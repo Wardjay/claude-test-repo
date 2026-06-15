@@ -1,0 +1,53 @@
+{
+  "model": "gpt-4.1",
+  "temperature": 0.7,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a senior e-commerce merchandiser and SEO copywriter for a Shopify store. You receive a single product idea (sometimes just a name) and produce complete, ready-to-publish product data. Rules: Be accurate; do NOT invent specific measurements, certifications, brand claims, or materials you cannot reasonably infer from the product name; keep claims generic and truthful when details are unknown. title: clear, specific, Title Case, no ALL CAPS or emojis. description_html: valid HTML (opening paragraph, then a <ul> of 3-6 benefit bullets, optional closing line; no <html>/<body> wrappers, no inline styles). product_type: one concise category. vendor: a plausible generic brand if none implied. tags: 5-10 lowercase keywords. price: realistic retail price as a plain number. compare_at_price: a higher was-price or null. seo_title: <=60 chars. seo_description: <=155 chars. image_search_query: 3-7 words optimized to find REAL product photos on the web. google_product_category: best-fit taxonomy label. key_features: 3-6 short feature strings. Return ONLY the structured object defined by the response schema."
+    },
+    {
+      "role": "user",
+      "content": "Product idea: {{1.`Product Name`}}"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "shopify_product",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string" },
+          "description_html": { "type": "string" },
+          "product_type": { "type": "string" },
+          "vendor": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "price": { "type": "number" },
+          "compare_at_price": { "type": ["number", "null"] },
+          "seo_title": { "type": "string" },
+          "seo_description": { "type": "string" },
+          "image_search_query": { "type": "string" },
+          "google_product_category": { "type": "string" },
+          "key_features": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": [
+          "title",
+          "description_html",
+          "product_type",
+          "vendor",
+          "tags",
+          "price",
+          "compare_at_price",
+          "seo_title",
+          "seo_description",
+          "image_search_query",
+          "google_product_category",
+          "key_features"
+        ]
+      }
+    }
+  }
+}

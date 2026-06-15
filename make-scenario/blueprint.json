@@ -1,0 +1,491 @@
+{
+  "name": "New products auto-create on Shopify (rebuilt)",
+  "flow": [
+    {
+      "id": 1,
+      "module": "google-sheets:searchRows",
+      "version": 2,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "mapper": {
+        "mode": "select",
+        "spreadsheetId": "YOUR_SPREADSHEET_ID",
+        "sheetId": "Sheet1",
+        "includesHeaders": true,
+        "tableFirstRow": "A1:G1",
+        "filter": [
+          [
+            {
+              "a": "Status",
+              "b": "",
+              "o": "text:empty"
+            }
+          ]
+        ],
+        "sortOrder": "asc",
+        "limit": "10"
+      },
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": 2,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "serializeUrl": false,
+        "method": "post",
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer YOUR_OPENAI_KEY"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "qs": [],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "authUser": "",
+        "authPass": "",
+        "timeout": "",
+        "shareCookies": false,
+        "ca": "",
+        "rejectUnauthorized": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "gzip": true,
+        "useMtls": false,
+        "contentType": "application/json",
+        "data": "{\"model\": \"gpt-4.1\", \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are a senior e-commerce merchandiser and SEO copywriter for a Shopify store. From a single product idea you produce complete, ready-to-publish product data. Be accurate; do NOT invent specific measurements, certifications or materials you cannot infer. title: clear, Title Case, no emojis. description_html: valid HTML (intro paragraph + <ul> of 3-6 benefit bullets; no <html>/<body> wrappers). product_type: one concise category. vendor: plausible generic brand. tags: 5-10 lowercase keywords. price: plain number. compare_at_price: higher number or null. seo_title <=60 chars. seo_description <=155 chars. image_search_query: 3-7 words to find REAL product photos on the web. google_product_category: best-fit label. key_features: 3-6 short strings. Return ONLY the schema object. (For best copy, paste the full prompt from reference/openai-system-prompt.md here.)\"}, {\"role\": \"user\", \"content\": \"Product idea: {{1.`Product Name`}}\"}], \"response_format\": {\"type\": \"json_schema\", \"json_schema\": {\"name\": \"shopify_product\", \"strict\": true, \"schema\": {\"type\": \"object\", \"additionalProperties\": false, \"properties\": {\"title\": {\"type\": \"string\"}, \"description_html\": {\"type\": \"string\"}, \"product_type\": {\"type\": \"string\"}, \"vendor\": {\"type\": \"string\"}, \"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}, \"price\": {\"type\": \"number\"}, \"compare_at_price\": {\"type\": [\"number\", \"null\"]}, \"seo_title\": {\"type\": \"string\"}, \"seo_description\": {\"type\": \"string\"}, \"image_search_query\": {\"type\": \"string\"}, \"google_product_category\": {\"type\": \"string\"}, \"key_features\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"title\", \"description_html\", \"product_type\", \"vendor\", \"tags\", \"price\", \"compare_at_price\", \"seo_title\", \"seo_description\", \"image_search_query\", \"google_product_category\", \"key_features\"]}}}}",
+        "followAllRedirects": false
+      },
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 0
+        }
+      },
+      "filter": {
+        "name": "Has product name",
+        "conditions": [
+          [
+            {
+              "a": "{{1.`Product Name`}}",
+              "o": "exist"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {
+        "type": ""
+      },
+      "mapper": {
+        "json": "{{2.data.choices[1].message.content}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 600,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": 4,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://serpapi.com/search.json",
+        "serializeUrl": false,
+        "method": "get",
+        "headers": [],
+        "qs": [
+          {
+            "name": "engine",
+            "value": "google_images"
+          },
+          {
+            "name": "q",
+            "value": "{{3.image_search_query}}"
+          },
+          {
+            "name": "api_key",
+            "value": "YOUR_SERPAPI_KEY"
+          },
+          {
+            "name": "num",
+            "value": "5"
+          }
+        ],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "authUser": "",
+        "authPass": "",
+        "timeout": "",
+        "shareCookies": false,
+        "ca": "",
+        "rejectUnauthorized": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "gzip": true,
+        "useMtls": false,
+        "contentType": "application/json",
+        "data": "",
+        "followAllRedirects": false
+      },
+      "metadata": {
+        "designer": {
+          "x": 900,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": 5,
+      "module": "json:CreateJSON",
+      "version": 1,
+      "parameters": {
+        "space": "",
+        "type": [
+          {
+            "name": "title",
+            "type": "text"
+          },
+          {
+            "name": "descriptionHtml",
+            "type": "text"
+          },
+          {
+            "name": "productType",
+            "type": "text"
+          },
+          {
+            "name": "vendor",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "tags",
+            "type": "array",
+            "spec": {
+              "type": "text"
+            }
+          },
+          {
+            "name": "seo",
+            "type": "collection",
+            "spec": [
+              {
+                "name": "title",
+                "type": "text"
+              },
+              {
+                "name": "description",
+                "type": "text"
+              }
+            ]
+          },
+          {
+            "name": "variants",
+            "type": "array",
+            "spec": {
+              "type": "collection",
+              "spec": [
+                {
+                  "name": "price",
+                  "type": "text"
+                },
+                {
+                  "name": "compareAtPrice",
+                  "type": "text"
+                },
+                {
+                  "name": "inventoryPolicy",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          {
+            "name": "files",
+            "type": "array",
+            "spec": {
+              "type": "collection",
+              "spec": [
+                {
+                  "name": "originalSource",
+                  "type": "text"
+                },
+                {
+                  "name": "contentType",
+                  "type": "text"
+                },
+                {
+                  "name": "alt",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          {
+            "name": "metafields",
+            "type": "array",
+            "spec": {
+              "type": "collection",
+              "spec": [
+                {
+                  "name": "namespace",
+                  "type": "text"
+                },
+                {
+                  "name": "key",
+                  "type": "text"
+                },
+                {
+                  "name": "type",
+                  "type": "text"
+                },
+                {
+                  "name": "value",
+                  "type": "text"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "mapper": {
+        "title": "{{3.title}}",
+        "descriptionHtml": "{{3.description_html}}",
+        "productType": "{{3.product_type}}",
+        "vendor": "{{3.vendor}}",
+        "status": "DRAFT",
+        "tags": "{{3.tags}}",
+        "seo": {
+          "title": "{{3.seo_title}}",
+          "description": "{{3.seo_description}}"
+        },
+        "variants": [
+          {
+            "price": "{{3.price}}",
+            "compareAtPrice": "{{3.compare_at_price}}",
+            "inventoryPolicy": "DENY"
+          }
+        ],
+        "files": [
+          {
+            "originalSource": "{{4.images_results[1].original}}",
+            "contentType": "IMAGE",
+            "alt": "{{3.title}}"
+          }
+        ],
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "REPLACE_WITH_YOUR_KEY",
+            "type": "single_line_text_field",
+            "value": "{{3.key_features[1]}}"
+          }
+        ]
+      },
+      "metadata": {
+        "designer": {
+          "x": 1200,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": 6,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://YOUR-STORE.myshopify.com/admin/api/2025-01/graphql.json",
+        "serializeUrl": false,
+        "method": "post",
+        "headers": [
+          {
+            "name": "X-Shopify-Access-Token",
+            "value": "YOUR_ADMIN_TOKEN"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "qs": [],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "authUser": "",
+        "authPass": "",
+        "timeout": "",
+        "shareCookies": false,
+        "ca": "",
+        "rejectUnauthorized": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "gzip": true,
+        "useMtls": false,
+        "contentType": "application/json",
+        "data": "{\"query\": \"mutation CreateProduct($input: ProductSetInput!) { productSet(input: $input, synchronous: true) { product { id handle title status onlineStorePreviewUrl } userErrors { field message } } }\", \"variables\": {\"input\": {{5.json}}}}",
+        "followAllRedirects": false
+      },
+      "metadata": {
+        "designer": {
+          "x": 1500,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": 7,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "mapper": null,
+      "metadata": {
+        "designer": {
+          "x": 1800,
+          "y": 0
+        }
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 8,
+              "module": "google-sheets:updateRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": null
+              },
+              "mapper": {
+                "mode": "select",
+                "spreadsheetId": "YOUR_SPREADSHEET_ID",
+                "sheetId": "Sheet1",
+                "includesHeaders": true,
+                "tableFirstRow": "A1:G1",
+                "rowNumber": "{{1.`__ROW_NUMBER__`}}",
+                "values": {
+                  "1": "done",
+                  "2": "{{6.data.data.productSet.product.id}}",
+                  "3": "{{6.data.data.productSet.product.handle}}",
+                  "4": "https://YOUR-STORE.myshopify.com/admin/products",
+                  "6": "{{now}}"
+                }
+              },
+              "metadata": {
+                "designer": {
+                  "x": 2100,
+                  "y": 0
+                }
+              },
+              "filter": {
+                "name": "Created OK",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{length(6.data.data.productSet.userErrors)}}",
+                      "o": "number:equal",
+                      "b": "0"
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 9,
+              "module": "google-sheets:updateRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": null
+              },
+              "mapper": {
+                "mode": "select",
+                "spreadsheetId": "YOUR_SPREADSHEET_ID",
+                "sheetId": "Sheet1",
+                "includesHeaders": true,
+                "tableFirstRow": "A1:G1",
+                "rowNumber": "{{1.`__ROW_NUMBER__`}}",
+                "values": {
+                  "1": "error",
+                  "5": "{{6.data.data.productSet.userErrors[].message}}",
+                  "6": "{{now}}"
+                }
+              },
+              "metadata": {
+                "designer": {
+                  "x": 2100,
+                  "y": 0
+                }
+              },
+              "filter": {
+                "name": "Had errors",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{length(6.data.data.productSet.userErrors)}}",
+                      "o": "number:greater",
+                      "b": "0"
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "slots": null,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu2.make.com"
+  }
+}

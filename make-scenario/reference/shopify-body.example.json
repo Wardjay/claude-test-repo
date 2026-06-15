@@ -1,0 +1,51 @@
+{
+  "_comment": "This is the FULL body for the Shopify HTTP module. Put the minified mutation from shopify-productSet.graphql as the 'query' string. Build the 'variables.input' object with a Create JSON module (step 6) so arrays/metafields serialize correctly, then reference its output here. {{...}} are Make mappings from earlier modules: module 4 = parsed OpenAI JSON, module 5 = SERP result.",
+
+  "query": "mutation CreateProduct($input: ProductSetInput!) { productSet(input: $input, synchronous: true) { product { id handle title status onlineStorePreviewUrl } userErrors { field message } } }",
+
+  "variables": {
+    "input": {
+      "title": "{{4.title}}",
+      "descriptionHtml": "{{4.description_html}}",
+      "productType": "{{4.product_type}}",
+      "vendor": "{{4.vendor}}",
+      "tags": "{{4.tags}}",
+      "status": "DRAFT",
+      "seo": {
+        "title": "{{4.seo_title}}",
+        "description": "{{4.seo_description}}"
+      },
+      "variants": [
+        {
+          "price": "{{4.price}}",
+          "compareAtPrice": "{{4.compare_at_price}}",
+          "inventoryPolicy": "DENY",
+          "inventoryItem": { "tracked": true }
+        }
+      ],
+      "files": [
+        {
+          "originalSource": "{{5.image_url}}",
+          "contentType": "IMAGE",
+          "alt": "{{4.title}}"
+        }
+      ],
+      "metafields": [
+        {
+          "namespace": "custom",
+          "key": "REPLACE_WITH_YOUR_KEY",
+          "type": "single_line_text_field",
+          "value": "{{4.SOME_FIELD}}"
+        }
+      ]
+    }
+  },
+
+  "_notes": {
+    "status": "Start with DRAFT. Switch to ACTIVE only after you trust the output.",
+    "files": "Omit this whole array (or leave originalSource empty) when the SERP step returned no image — the product still creates. Invalid image URLs surface in media[].status / mediaUserErrors but do NOT block product creation.",
+    "compareAtPrice": "Remove this line if compare_at_price is null, or keep it — null is accepted.",
+    "metafields": "One object per metafield. type MUST match the Shopify metafield definition. For list.* types, value is a JSON-encoded string e.g. \"[\\\"Cotton\\\",\\\"Linen\\\"]\". Send me your real list and I'll finalize this array.",
+    "variants_with_options": "If you later want size/color variants, add input.productOptions:[{name, values:[{name}]}] and give each variant optionValues:[{optionName, name}]."
+  }
+}
