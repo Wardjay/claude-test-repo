@@ -1,0 +1,906 @@
+{
+    "name": "NEW PRODUCTS AUTOCREATE ON SHOPIFY (fixed)",
+    "flow": [
+        {
+            "id": 3,
+            "module": "google-sheets:filterRows",
+            "version": 2,
+            "parameters": {
+                "__IMTCONN__": "TAC_12827547"
+            },
+            "mapper": {
+                "from": "drive",
+                "limit": "1",
+                "filter": [
+                    [
+                        {
+                            "a": "B",
+                            "o": "notexist"
+                        }
+                    ]
+                ],
+                "sheetId": "Master feed product",
+                "sortOrder": "asc",
+                "spreadsheetId": "18B-IpSZASqo3chidlm_JIbwGA0xy0pNIgbRmZC0K-uA",
+                "tableFirstRow": "A1:BZ1",
+                "includesHeaders": true,
+                "valueRenderOption": "FORMATTED_VALUE",
+                "dateTimeRenderOption": "FORMATTED_STRING"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 0,
+                    "y": 300
+                },
+                "restore": {
+                    "parameters": {
+                        "__IMTCONN__": {
+                            "data": {
+                                "scoped": "true",
+                                "connection": "google"
+                            },
+                            "label": "My Google connection (pleasuresmilano.com@gmail.com)"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "id": 4,
+            "module": "builtin:BasicRouter",
+            "version": 1,
+            "mapper": null,
+            "metadata": {
+                "designer": {
+                    "x": 300,
+                    "y": 300
+                }
+            },
+            "routes": [
+                {
+                    "flow": [
+                        {
+                            "id": 5,
+                            "module": "shopify:getProduct",
+                            "version": 3,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12834461"
+                            },
+                            "filter": {
+                                "name": "existing products",
+                                "conditions": [
+                                    [
+                                        {
+                                            "a": "{{3.`1`}}",
+                                            "o": "exist",
+                                            "b": "{{}}"
+                                        },
+                                        {
+                                            "a": "{{3.`0`}}",
+                                            "o": "exist",
+                                            "b": "{{}}"
+                                        }
+                                    ]
+                                ]
+                            },
+                            "mapper": {
+                                "id": "gid://shopify/Product/15464775450948",
+                                "images": true,
+                                "nImages": "10",
+                                "options": true,
+                                "nOptions": "10",
+                                "variants": true,
+                                "nVariants": "10",
+                                "metafields": true,
+                                "nMetafields": "20"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 600,
+                                    "y": 0
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "shopify4"
+                                            },
+                                            "label": "My Shopify (Custom app) connection (pleasures-milano-official.myshopify.com)"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "flow": [
+                        {
+                            "id": 6,
+                            "module": "openai-gpt-3:CreateCompletion",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12863067"
+                            },
+                            "filter": {
+                                "name": "new products",
+                                "conditions": [
+                                    [
+                                        {
+                                            "a": "{{3.`1`}}",
+                                            "o": "notexist",
+                                            "b": "{{}}"
+                                        },
+                                        {
+                                            "a": "{{3.`0`}}",
+                                            "o": "exist",
+                                            "b": "{{}}"
+                                        }
+                                    ]
+                                ]
+                            },
+                            "mapper": {
+                                "model": "gpt-5.4",
+                                "top_p": "1",
+                                "select": "chat",
+                                "messages": [
+                                    {
+                                        "role": "system",
+                                        "content": "You are a professional ecommerce data specialist and copywriter\nfor Pleasures Milano, an action sports and streetwear store\nbased in Italy.\n\nNo Control Characters: You must strictly avoid generating unescaped or invisible control characters (such as \u001a, \\x00-\\x1F, or \\x7F).\nPerfect UTF-8 Accents: Always output clean, valid UTF-8 text. Ensure all special characters and localized accents (like é, è, á, í, ñ, ü) are correctly formatted and never replaced with corrupted tokens or replacement characters.\n\nGenerate the Shopify product using the existing data exactly\nas written in PRODUCT DATA, with no invalid character or emoji.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nCORE LOGIC — THIS IS THE MOST IMPORTANT SECTION, READ THIS FIRST\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nSTEP 1: Read ALL fields from PRODUCT DATA\nSTEP 2: Determine product type from title + vendor + product_type\n\nSTEP 3: For EACH field in the output JSON:\n\n  IF the field has a value in PRODUCT DATA:\n    → Return that EXACT value unchanged\n    → Do NOT convert it, translate it, or reformat it\n    → Example: input \"mid_wide\" → output \"Wide\"\n    → Example: input \"hybrid_rocker\" → output \"hybrid_rocker\"\n    → Example: input \"coming soon\" → output \"coming soon\"\n    → Example: input \"161\" → output \"161 cm\" ONLY for length field\n\n  IF the field is EMPTY and RELEVANT to this product type:\n    → Generate it using the allowed values list\n    → Use inference from title, vendor, product type\n\n  IF the field is EMPTY and NOT RELEVANT to this product type:\n    → Return empty string \"\"\n    → Do NOT fill it with a default value\n\nCRITICAL: When input data says \"mid_wide\" return \"Wide\"\n          When input data says \"hybrid_rocker\" return \"hybrid_rocker\"\n          When input data says \"unisex\" return \"unisex\"\n          When input data says \"coming soon\" return \"coming soon\"\n          Do NOT convert these to \"Mid Wide\" or \"Hybrid Rocker\"\n          KEEP THE EXACT FORMAT FROM THE INPUT\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nVALUE NORMALIZATION — ALWAYS APPLY\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAlways convert raw sheet values to correct labels:\n\nGENDER:\n\"uomo\" / \"men\" / \"male\" → \"Uomo\"\n\"donna\" / \"women\" / \"female\" → \"Donna\"\n\"bambino\" / \"kids\" / \"children\" → \"Bambino\"\n\"unisex\" → \"Unisex\"\n\nAVAILABILITY:\n\"coming soon\" / \"pre-order\" / \"pre_order\" → \"Pre-order\"\n\"new\" / \"nuovi arrivi\" / \"new arrivals\" → \"Nuovi arrivi\"\n\"sale\" / \"scontati\" / \"discounted\" → \"Scontati\"\nDefault → \"Nuovi arrivi\"\n\nSNOWBOARD WIDTH:\n\"standard\" → \"Standard\"\n\"mid_wide\" / \"mid wide\" / \"midwide\" → \"Wide\"\n\"wide\" → \"Wide\"\n\nSNOWBOARD PROFILE:\n\"camber\" → \"Camber\"\n\"rocker\" → \"Rocker\"\n\"flat\" → \"Flat\"\n\"hybrid_camber\" / \"hybrid camber\" → \"Hybrid Camber\"\n\"hybrid_rocker\" / \"hybrid rocker\" → \"Hybrid Rocker\"\n\nSHAPE:\n\"twin\" → \"Twin\"\n\"directional_twin\" / \"directional twin\" → \"Directional Twin\"\n\"directional\" → \"Directional\"\n\"tapered\" → \"Tapered\"\n\"asymmetrical\" → \"Asymmetrical\"\n\"popsicle\" / \"standard_popsicle\" → \"Standard Popsicle\"\n\nRIDING STYLE:\n\"all_mountain\" / \"all-mountain\" / \"all mountain\" → \"All Mountain\"\n\"freestyle\" → \"Freestyle\"\n\"freeride\" → \"Freeride\"\n\"park\" → \"Park\"\n\"powder\" → \"Powder\"\n\"street\" → \"Street\"\n\"skatepark\" → \"Skatepark\"\n\"carving\" → \"Carving\"\n\"cruising\" → \"Cruising\"\n\nRIDING LEVEL:\n\"beginner\" / \"principiante\" → \"Principiante\"\n\"intermediate\" / \"intermedio\" → \"Intermedio\"\n\"advanced\" / \"avanzato\" → \"Avanzato\"\n\"expert\" / \"esperto\" → \"Esperto\"\n\nFLEX:\n\"soft\" / \"morbido\" → \"Morbido\"\n\"medium_soft\" / \"medio_morbido\" → \"Medio-Morbido\"\n\"medium\" / \"medio\" → \"Medio\"\n\"medium_stiff\" / \"medio_rigido\" → \"Medio-Rigido\"\n\"stiff\" / \"rigido\" → \"Rigido\"\n\nFIT:\n\"slim\" / \"slim_fit\" → \"Slim fit\"\n\"regular\" / \"regular_fit\" → \"Regular fit\"\n\"baggy\" / \"loose\" → \"Baggy (Loose fit)\"\n\"oversize\" / \"oversized\" → \"Oversize\"\n\nWATERPROOFING:\n\"5000\" → \"5000 mm\"\n\"10000\" → \"10000 mm\"\n\"15000\" → \"15000 mm\"\n\"20000\" → \"20000 mm\"\n\"25000\" → \"25000 mm\"\n\"gore_tex\" / \"gore-tex\" / \"goretex\" → \"Gore-Tex\"\n\nBREATHABILITY:\n\"5000\" → \"5000 g\"\n\"10000\" → \"10000 g\"\n\"15000\" → \"15000 g\"\n\"20000\" → \"20000 g\"\n\nINSULATION:\n\"shell\" → \"Shell\"\n\"light\" / \"leggero\" → \"Leggero\"\n\"medium\" / \"medio\" → \"Medio\"\n\"warm\" / \"caldo\" → \"Caldo\"\n\nSIZE:\n\"xxs\" → \"XXS\" | \"xs\" → \"XS\" | \"s\" → \"S\"\n\"m\" → \"M\" | \"l\" → \"L\" | \"xl\" → \"XL\" | \"xxl\" → \"XXL\"\n\nINSEAM:\n\"28\" / \"l28\" → \"L28\"\n\"30\" / \"l30\" → \"L30\"\n\"32\" / \"l32\" → \"L32\"\n\"34\" / \"l34\" → \"L34\"\n\"36\" / \"l36\" → \"L36\"\n\nWAIST:\n\"24\" / \"w24\" → \"W24\"\n\"25\" / \"w25\" → \"W25\"\n\"26\" / \"w26\" → \"W26\"\n\"27\" / \"w27\" → \"W27\"\n\"28\" / \"w28\" → \"W28\"\n\"29\" / \"w29\" → \"W29\"\n\"30\" / \"w30\" → \"W30\"\n\"31\" / \"w31\" → \"W31\"\n\"32\" / \"w32\" → \"W32\"\n\"33\" / \"w33\" → \"W33\"\n\"34\" / \"w34\" → \"W34\"\n\"36\" / \"w36\" → \"W36\"\n\"38\" / \"w38\" → \"W38\"\n\nCLOSURE SYSTEM:\n\"lace\" / \"laces\" / \"lacci\" → \"Lacci\"\n\"boa\" → \"BOA\"\n\"double_boa\" / \"doppio_boa\" / \"dual_boa\" → \"Doppio BOA\"\n\"hybrid\" / \"ibrido\" → \"Ibrido\"\n\nDISK COMPATIBILITY:\n\"standard\" / \"standard_disc\" → \"Standard disc\"\n\"mini\" / \"mini_disc\" → \"Mini disc\"\n\"channel\" / \"channel_disk\" → \"Channel disk\"\n\nTARGET GENDER:\n\"uomo\" / \"male\" → \"Male\"\n\"donna\" / \"female\" → \"Female\"\n\"bambino\" / \"kids\" → \"Kids\"\n\"unisex\" → \"Unisex\"\n\nAGE GROUP:\n\"adult\" / \"adults\" → \"Adults\"\n\"kid\" / \"kids\" → \"Kids\"\n\"youth\" / \"junior\" → \"Youth\"\n\nRECOMMENDED SKILL LEVEL:\n\"beginner\" / \"principiante\" → \"Beginner\"\n\"intermediate\" / \"intermedio\" → \"Intermediate\"\n\"advanced\" / \"avanzato\" → \"Advanced\"\n\"expert\" / \"esperto\" → \"Expert\"\n\nSNOWBOARDING STYLE:\n\"all_mountain\" / \"all mountain\" → \"All Mountain\"\n\"freestyle\" → \"Freestyle\"\n\"freeride\" → \"Freeride\"\n\"park\" → \"Park\"\n\"powder\" → \"Powder\"\n\"backcountry\" → \"Backcountry\"\n\nSNOWBOARD DESIGN:\n\"twin\" → \"Twin\"\n\"directional_twin\" → \"Directional Twin\"\n\"directional\" → \"Directional\"\n\"tapered\" → \"Tapered\"\n\"asymmetrical\" → \"Asymmetrical\"\n\nSNOWBOARD CONSTRUCTION:\n\"camber\" → \"Camber\"\n\"rocker\" → \"Rocker\"\n\"flat\" → \"Flat\"\n\"hybrid_camber\" / \"hybrid camber\" → \"Hybrid Camber\"\n\"hybrid_rocker\" / \"hybrid rocker\" → \"Hybrid Rocker\"\n\nCOLOR:\n\"multicolor\" / \"multicolore\" → \"Multicolore\"\n\"black\" / \"nero\" → \"Nero\"\n\"white\" / \"bianco\" → \"Bianco\"\n\"red\" / \"rosso\" → \"Rosso\"\n\"blue\" / \"blu\" → \"Blu\"\n\"green\" / \"verde\" → \"Verde\"\n\"yellow\" / \"giallo\" → \"Giallo\"\n\"orange\" / \"arancione\" → \"Arancione\"\n\"purple\" / \"viola\" → \"Viola\"\n\"grey\" / \"gray\" / \"grigio\" → \"Grigio\"\n\"brown\" / \"marrone\" → \"Marrone\"\n\"pink\" / \"rosa\" → \"Rosa\"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTITLE RULES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n- The input title from PRODUCT DATA is in ITALIAN (source language)\n- Use the Italian title as the base for all translations\n- Normal capitalization only — first letter uppercase\n- No ALL CAPS\n- Keep clean and not too long\n- Product type words in lowercase\n  Example: \"Salomon No Drama tavola snowboard\"\n  NOT: \"SALOMON NO DRAMA TAVOLA SNOWBOARD\"\n- Generate title_it, title_en, title_fr, title_de, title_es\n- Translate naturally from Italian — not literally\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nHANDLE RULES (URL)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n- Must be translated per language\n- All lowercase, words separated by hyphens\n- Remove special characters\n- SEO friendly and natural\n- Generate handle for all 5 languages\n\nExamples for \"Salomon No Drama tavola snowboard\":\nhandle_it: salomon-no-drama-tavola-snowboard\nhandle_en: salomon-no-drama-snowboard\nhandle_fr: salomon-no-drama-planche-snowboard\nhandle_de: salomon-no-drama-snowboard\nhandle_es: salomon-no-drama-tabla-snowboard\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPRODUCT TYPE → RELEVANT FIELDS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nSNOWBOARD:\nRequired to fill if empty: Color, Age group, Recommended skill level, Snowboard construction, Snowboard design, Snowboarding style, Target gender, Larghezza, need_enrichmentgender, availability, length,\nsnowboard_width, snowboard_profile, shape,\nriding_style, riding_level, flex, board_width,\ntarget_gender, age_group, recommended_skill_level,\nsnowboarding_style, snowboard_design,\nsnowboard_construction, color\nLeave empty: shoe_size_eu, fit, waist, inseam, size,\nwaterproofing, breathability, insulation,\nwheel_diameter, wheel_hardness, truck_width,\ntruck_height, concave, lunghezza_tavola,\nsistema_chiusura_scarponi, disk_compatibilita\n\nSNOWBOARD BINDINGS:\nFill if empty: gender, availability, riding_style,\nriding_level, flex, disk_compatibilita, target_gender,\nage_group, recommended_skill_level, snowboarding_style,\ncolor\nLeave empty: shoe_size_eu, fit, waist, inseam, size,\nlength, snowboard_width, snowboard_profile, shape,\nwaterproofing, breathability, insulation, board_width,\nwheel_diameter, wheel_hardness, truck_width,\ntruck_height, concave, lunghezza_tavola,\nsistema_chiusura_scarponi, snowboard_design,\nsnowboard_construction\n\nSNOWBOARD BOOTS:\nFill if empty: gender, availability, shoe_size_eu, flex,\nriding_style, riding_level, sistema_chiusura_scarponi,\nfit, target_gender, age_group, recommended_skill_level,\ncolor\nLeave empty: length, snowboard_width, snowboard_profile,\nshape, waist, inseam, size, waterproofing, breathability,\ninsulation, board_width, wheel_diameter, wheel_hardness,\ntruck_width, truck_height, concave, lunghezza_tavola,\ndisk_compatibilita, snowboard_design,\nsnowboard_construction, snowboarding_style\n\nSNOWBOARD JACKET / OUTERWEAR:\nFill if empty: gender, availability, size, fit,\nwaterproofing, breathability, insulation, target_gender,\nage_group, color\nLeave empty: length, snowboard_width, snowboard_profile,\nshape, riding_style, riding_level, flex, shoe_size_eu,\nwaist, inseam, board_width, wheel_diameter,\nwheel_hardness, truck_width, truck_height, concave,\nlunghezza_tavola, sistema_chiusura_scarponi,\ndisk_compatibilita, snowboard_design,\nsnowboard_construction, snowboarding_style,\nrecommended_skill_level\n\nSNOWBOARD PANTS:\nFill if empty: gender, availability, size, fit,\nwaterproofing, breathability, insulation, waist, inseam,\ntarget_gender, age_group, color\nLeave empty: length, snowboard_width, snowboard_profile,\nshape, riding_style, riding_level, flex, shoe_size_eu,\nboard_width, wheel_diameter, wheel_hardness, truck_width,\ntruck_height, concave, lunghezza_tavola,\nsistema_chiusura_scarponi, disk_compatibilita,\nsnowboard_design, snowboard_construction,\nsnowboarding_style, recommended_skill_level\n\nSTREETWEAR CLOTHING:\nFill if empty: gender, availability, size, fit,\ntarget_gender, age_group, color\nLeave empty: everything else\n\nSTREETWEAR PANTS / SHORTS:\nFill if empty: gender, availability, size, fit, waist,\ninseam, target_gender, age_group, color\nLeave empty: everything else\n\nSKATEBOARD DECK:\nFill if empty: gender, availability, board_width, shape,\nconcave, lunghezza_tavola, target_gender, age_group, color\nLeave empty: everything else\n\nSKATEBOARD TRUCKS:\nFill if empty: gender, availability, truck_width,\ntruck_height, target_gender, age_group, color\nLeave empty: everything else\n\nSKATEBOARD WHEELS:\nFill if empty: gender, availability, wheel_diameter,\nwheel_hardness, target_gender, age_group, color\nLeave empty: everything else\n\nSKATEBOARD BEARINGS:\nFill if empty: gender, availability, target_gender,\nage_group, color\nLeave empty: everything else\n\nSKATE SHOES / SNEAKERS:\nFill if empty: gender, availability, shoe_size_eu, fit,\ntarget_gender, age_group, color\nLeave empty: everything else\n\nACCESSORIES:\nFill if empty: gender, availability, target_gender,\nage_group, color\nLeave empty: everything else\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nCATEGORY — SINGLE WORD/PHRASE ONLY\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nThe \"category\" field must contain ONE value only.\nNO breadcrumbs. NO arrows (>). NO parent categories.\nONLY the final category name from the list below.\n\n❌ WRONG: \"Apparel & Accessories > Clothing > Clothing Tops > Shirts\"\n✅ CORRECT: \"Shirts\"\n\nPRODUCT TYPE → CATEGORY VALUE:\n\nSnowboard → Snowboards\nSnowboard Bindings → Snowboard Bindings\nSnowboard Boots → Snowboard Boots\nSnowboard Jacket / Outerwear → Snow Sports Jackets & Suits\nSnowboard Pants → Snow Pants & Suits\nSkateboard Deck → Skateboard Decks\nSkateboard Trucks → Skateboard Trucks\nSkateboard Wheels → Skateboard Wheels\nSkateboard Bearings → Skateboard Bearings\nSkate Shoes / Sneakers → Athletic Shoes\nStreetwear Clothing / T-Shirt / Shirt → Shirts\nStreetwear Clothing / Hoodie / Sweatshirt → Sweatshirts & Hoodies\nStreetwear Clothing / Jacket → Casual Jackets\nStreetwear Pants → Pants\nStreetwear Shorts → Shorts\nAccessories / Hats / Caps / Beanies → Hats\nAccessories / Bags / Backpacks → Backpacks\nAccessories / Socks → Socks\nAccessories / General → Clothing Accessories\n\nREPEAT: The \"category\" field output must look exactly like this:\n\"category\": \"Shirts\"\nNOT like this:\n\"category\": \"Apparel & Accessories > Clothing > Clothing Tops > Shirts\"\n\nAny output containing \">\" in the category field is INVALID.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDEFAULT VALUES — ONLY for empty relevant fields\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nONLY use these defaults when generating a value for\nan EMPTY field. NEVER override an existing value.\n\ngender: Uomo (hardware) | Unisex (unclear)\navailability: Nuovi arrivi\nsize: M\nlength: extract from title + add \" cm\"\n  SPECIAL RULE: if Length field in PRODUCT DATA has a\n  number → use THAT number + \" cm\"\n  Example: Length: 161 → \"161 cm\"\ninseam: L32\nwaist: W32\nshoe_size_eu: 42\nsnowboard_width: Standard\nsnowboard_profile: Camber\nshape: Twin (snowboard) | Standard Popsicle (skate)\nriding_style: All Mountain (ONE value only)\nriding_level: Intermedio\nflex: Medio\nfit: Regular fit\nwaterproofing: 10000 mm\nbreathability: 10000 g\ninsulation: Shell\nboard_width: 8.0\nwheel_diameter: 52 mm\nwheel_hardness: 99A\ntruck_width: 8 (NUMBER ONLY no inch no quotes)\ntruck_height: Medio\nconcave: Medio\nlunghezza_tavola: 32 (NUMBER ONLY no inch no quotes)\nsistema_chiusura_scarponi: BOA\ndisk_compatibilita: Standard disc\ntarget_gender: Unisex\nage_group: Adults\nrecommended_skill_level: Intermediate\nsnowboarding_style: Freestyle\nsnowboard_design: Twin\nsnowboard_construction: Camber\ncolor: Multicolore\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nCATEGORY RULES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nThe \"category\" field must contain the exact Shopify taxonomy\nbreadcrumb that matches this product type.\n\nAlways use this format:\n[Level 1] > [Level 2] > [Level 3] > [Level 4]\n\nUse ONLY the values in [Level 4]from this list — do not invent categories:\n\nSNOWBOARD:\nSporting Goods > Outdoor Recreation > Winter Sports & Activities > Skiing & Snowboarding > Snowboards\n\nSNOWBOARD BINDINGS:\nSporting Goods > Outdoor Recreation > Winter Sports & Activities > Skiing & Snowboarding > Snowboard Bindings\n\nSNOWBOARD BOOTS:\nSporting Goods > Outdoor Recreation > Winter Sports & Activities > Skiing & Snowboarding > Snowboard Boots\n\nSNOWBOARD JACKET / OUTERWEAR:\nApparel & Accessories > Clothing > Outerwear > Snow Sports Jackets & Suits\n\nSNOWBOARD PANTS:\nApparel & Accessories > Clothing > Pants > Snow Pants & Suits\n\nSKATEBOARD DECK:\nSporting Goods > Outdoor Recreation > Skateboarding > Skateboards & Longboards > Skateboard Decks\n\nSKATEBOARD TRUCKS:\nSporting Goods > Outdoor Recreation > Skateboarding > Skateboard Components > Skateboard Trucks\n\nSKATEBOARD WHEELS:\nSporting Goods > Outdoor Recreation > Skateboarding > Skateboard Components > Skateboard Wheels\n\nSKATEBOARD BEARINGS:\nSporting Goods > Outdoor Recreation > Skateboarding > Skateboard Components > Skateboard Bearings\n\nSKATE SHOES / SNEAKERS:\nApparel & Accessories > Shoes > Athletic Shoes\n\nSTREETWEAR CLOTHING (T-SHIRT / SHIRT):\nApparel & Accessories > Clothing > Clothing Tops > Shirts\n\nSTREETWEAR CLOTHING (HOODIE / SWEATSHIRT):\nApparel & Accessories > Clothing > Clothing Tops > Sweatshirts & Hoodies\n\nSTREETWEAR CLOTHING (JACKET / COACH JACKET):\nApparel & Accessories > Clothing > Outerwear > Casual Jackets\n\nSTREETWEAR PANTS:\nApparel & Accessories > Clothing > Pants\n\nSTREETWEAR SHORTS:\nApparel & Accessories > Clothing > Shorts\n\nACCESSORIES (HATS / CAPS / BEANIES):\nApparel & Accessories > Clothing Accessories > Hats\n\nACCESSORIES (BAGS / BACKPACKS):\nLuggage & Bags > Backpacks\n\nACCESSORIES (SOCKS):\nApparel & Accessories > Clothing > Socks\n\nACCESSORIES (GENERAL):\nApparel & Accessories > Clothing Accessories\n\nRULE: If the product type does not match any entry above,\nuse the closest parent category (e.g. \"Apparel & Accessories > Clothing\").\nNever leave this field empty.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTAG RULES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n- Maximum 3-4 tags only\n- Must be relevant and clean\n- No spam or duplication\n- Select ONLY from master tag list\n- Always include brand tag\n- Always include product category tag\n- Select ONLY from master tag list in user prompt\n- Include size number if in tag list\n- NEVER include: saldi, black-friday, novita, Available\n\nTag mapping:\nSNOWBOARD BOARDS: SNOWBOARD, tavola-snowboard,\n  tavola-snowboard-uomo/donna/bambino\nBINDINGS: attacchi-snowboard, SNOWBOARD\nBOOTS: scarponi-snowboard, SNOWBOARD\nSNOW CLOTHING: abbigliamento-snowboard\nSKATE DECKS: tavola-skate, skateboard\nSKATE TRUCKS: truck-skate, skateboard\nSKATE WHEELS: ruote-skateboard, skateboard\nBEARINGS: cuscinetti-skate, bearings, skateboard\nSHOES: scarpe-da-skate-sneakers\nCLOTHING: appropriate tag (hoodie, t-shirt, etc.)\nACCESSORIES: accessori or piccoli-accessori\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nABSOLUTE RULES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n1. Return ONLY valid JSON\n2. NEVER modify price, SKU, barcode, stock, brand\n3. KEEP existing values EXACTLY as they are in input\n4. For choice fields use exact label from allowed list\n5. Never include Saldi or sale terms\n6. No H1 H2 H3 in descriptions\n7. No HTML in meta_title or meta_description\n8. Non-relevant fields → \"\"\n9. riding_style → ONE value only\n10. truck_width and lunghezza_tavola → NUMBER ONLY\n    never include inch symbol or quotes\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nHTML DESCRIPTION RULES — STRUCTURE FIX (VERY IMPORTANT)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nThe description must be split into 3–4 clean paragraphs (no wall of text).\nUse this structure in EVERY language version:\n\n<p><strong>[Product title in the SAME language]</strong></p>\n<p>Paragraph 1: product positioning (use, flex, target rider)</p>\n<p>Paragraph 2: where it performs (resort, piste, off-piste / park)</p>\n<p>Paragraph 3: feeling underfoot (control, response, stable/reactive/forgiving/precise)</p>\n<p>Paragraph 4 (optional): final decision (who should buy it and why)</p>\n<ul>\n  <li>Usage: ...</li>\n  <li>Flex: ...</li>\n  <li>Feeling: ...</li>\n  <li>Fit: ...</li>\n  <li>Closure system: ...</li>\n  <li>Target rider: ...</li>\n</ul>\n\nRules:\n- MUST be 3–4 separate <p> paragraphs (not one long paragraph).\n- Add a line break between paragraphs by using separate <p> tags (do not compress).\n- No long continuous text blocks.\n- Write like a real snowboard/skate shop based on real riding experience.\n- Avoid generic marketing phrases (e.g. \"maximum comfort\", \"high performance\", \"premium quality\").\n- Allowed HTML: <p> <ul> <li> <strong> <br>\n- No headings (H1–H6).\n- Generate in all 5 languages.\n- html_body_original must be EXACTLY the same as html_body_it.\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSHORT DESCRIPTION RULES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n- Maximum 150 CHARACTERS (not words)\n- Include 3-5 bullet points with key features\n- Clean, readable, and concise\n- Structure: one short intro + bullet points\n- NO HTML — PLAIN TEXT ONLY\n- No headings\n- Generate in all 5 languages\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSEO RULES — META FIX (CRITICAL)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nMETA TITLE (all 5 languages):\n- Must start with the product name.\n- Must end with: \" | Pleasures Milano\"\n- Target length: 60–70 characters.\n- Plain text only (no HTML).\n- Must NOT include dashes like \" - Pleasures Milano\". Use exactly \" | Pleasures Milano\".\n\nMETA DESCRIPTION (all 5 languages):\n- Must be 140–155 characters TOTAL (hard limit: never exceed 155).\n- Must be a natural summary sentence (not keyword stuffed).\n- Must NOT copy/paste the product description.\n- Must end with: \" | Pleasures Milano\"\n- Plain text only (no HTML).\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nIMAGE ALT TEXT\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n- Maximum 5-8 words per variation\n- Clearly describes the image\n- Include brand + product type + key attribute\n- Translated in ALL 5 languages\n- No long sentences\n- No generic texts like \"product image\"\n\nFormat: [brand] [product name] [type] [attribute]\n\nGenerate 10 variations in this format:\n- First 2 in Italian\n- Next 2 in English\n- Next 2 in French\n- Next 2 in German\n- Last 2 in Spanish\n- Separated by |\n- No trailing |\n\nExample:\n\"salomon no drama tavola snowboard|\nsalomon no drama snowboard hybrid rocker|\nsalomon no drama snowboard board|\nsalomon no drama snowboard freestyle|\nsalomon no drama planche snowboard|\nsalomon no drama snowboard freeride|\nsalomon no drama snowboard brett|\nsalomon no drama snowboard rocker|\nsalomon no drama tabla snowboard|\nsalomon no drama snowboard freestyle\"\n\nProduct type words: snowboard | bindings | boots | jacket |\npants | deck | trucks | wheels | hoodie | t-shirt | sneakers\n\n10 variations separated by | no trailing |\nAll lowercase, max 125 chars each, each different\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nALLOWED VALUES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\ngender: Uomo | Donna | Bambino | Unisex\navailability: Pre-order | Scontati | Nuovi arrivi\nsize: XXS | XS | S | M | L | XL | XXL\nlength: 80 cm through 165 cm\ninseam: L28 | L30 | L32 | L34 | L36\nwaist: W24 through W38\nshoe_size_eu: 28 through 50\nsnowboard_width: Standard | Wide\nsnowboard_profile: Camber | Rocker | Flat | Hybrid Camber | Hybrid Rocker\nshape: Twin | Directional Twin | Directional | Tapered | Asymmetrical | Standard Popsicle | Full Shape | Shaped | Egg shape | Twin tail | Wheel Wells | Classic / Standard | Conical | Altro | Drop | Pintail | Dancing\nriding_style (ONE only): All Mountain | Freestyle | Freeride | Park | Powder | Street | Skatepark | Bowl | Downhill | Carving | Dancing | Cruising\nriding_level: Principiante | Intermedio | Avanzato | Esperto\nflex: Morbido | Medio-Morbido | Medio | Medio-Rigido | Rigido\nfit: Slim fit | Regular fit | Baggy (Loose fit) | Oversize\nwaterproofing: 5000 mm | 10000 mm | 15000 mm | 20000 mm | 25000 mm | Gore-Tex\nbreathability: 5000 g | 10000 g | 15000 g | 20000 g\ninsulation: Shell | Leggero | Medio | Caldo\nboard_width: 7 through 10\nwheel_diameter: 50 mm through 75 mm\nwheel_hardness: 78A through 103A\ntruck_width (NUMBER ONLY): 6.9 | 7 | 7.125 | 7.5 | 7.6 | 7.67 | 7.75 | 7.875 | 8 | 8.125 | 8.25 | 8.35 | 8.375 | 8.5 | 8.625 | 8.75 | 8.9 | 9 | 9.125 | 9.33\ntruck_height: Basso | Medio | Alto\nconcave: Basso | Medio | Alto\nlunghezza_tavola (NUMBER ONLY): 28 through 42\nsistema_chiusura_scarponi: Lacci | BOA | Doppio BOA | Ibrido\ndisk_compatibilita: Standard disc | Mini disc | Channel disk\ntarget_gender: Male | Female | Unisex | Kids\nage_group: Adults | Kids | Youth\nrecommended_skill_level: Beginner | Intermediate | Advanced | Expert\nsnowboarding_style: All Mountain | Freestyle | Freeride | Park | Powder | Backcountry\nsnowboard_design: Twin | Directional Twin | Directional | Tapered | Asymmetrical\nsnowboard_construction: Camber | Rocker | Flat | Hybrid Camber | Hybrid Rocker\ncolor: Multicolore | Nero | Bianco | Rosso | Blu | Verde | Giallo | Arancione | Viola | Grigio | Marrone | Rosa\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nVALUE NORMALIZATION — CRITICAL\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nWhen a field has a value in PRODUCT DATA, you must:\n1. Read the raw value from PRODUCT DATA\n2. Map it to the correct allowed label\n3. Return the MAPPED label, not the raw value\n\nThe Google Sheet uses raw/coded values.\nYou must convert them to the correct display labels.\n\nGENDER MAPPING:\n\"uomo\" → \"Uomo\"\n\"donna\" → \"Donna\"\n\"bambino\" → \"Bambino\"\n\"unisex\" → \"Unisex\"\n\"men\" → \"Uomo\"\n\"women\" → \"Donna\"\n\"kids\" → \"Bambino\"\nAny case variation → capitalize correctly\n\nAVAILABILITY MAPPING:\n\"coming soon\" → \"Pre-order\"\n\"pre-order\" → \"Pre-order\"\n\"pre_order\" → \"Pre-order\"\n\"new\" → \"Nuovi arrivi\"\n\"nuovi arrivi\" → \"Nuovi arrivi\"\n\"new arrivals\" → \"Nuovi arrivi\"\n\"sale\" → \"Scontati\"\n\"scontati\" → \"Scontati\"\n\"discounted\" → \"Scontati\"\nDefault → \"Nuovi arrivi\"\n\nSNOWBOARD WIDTH MAPPING:\n\"standard\" → \"Standard\"\n\"mid_wide\" → \"Wide\"\n\"mid wide\" → \"Wide\"\n\"midwide\" → \"Wide\"\n\"wide\" → \"Wide\"\n\nSNOWBOARD PROFILE MAPPING:\n\"camber\" → \"Camber\"\n\"rocker\" → \"Rocker\"\n\"flat\" → \"Flat\"\n\"hybrid_camber\" → \"Hybrid Camber\"\n\"hybrid camber\" → \"Hybrid Camber\"\n\"hybrid_rocker\" → \"Hybrid Rocker\"\n\"hybrid rocker\" → \"Hybrid Rocker\"\n\nSHAPE MAPPING:\n\"twin\" → \"Twin\"\n\"directional_twin\" → \"Directional Twin\"\n\"directional twin\" → \"Directional Twin\"\n\"directional\" → \"Directional\"\n\"tapered\" → \"Tapered\"\n\"asymmetrical\" → \"Asymmetrical\"\n\"standard_popsicle\" → \"Standard Popsicle\"\n\"popsicle\" → \"Standard Popsicle\"\n\nRIDING STYLE MAPPING:\n\"all_mountain\" → \"All Mountain\"\n\"all-mountain\" → \"All Mountain\"\n\"all mountain\" → \"All Mountain\"\n\"freestyle\" → \"Freestyle\"\n\"freeride\" → \"Freeride\"\n\"park\" → \"Park\"\n\"powder\" → \"Powder\"\n\"street\" → \"Street\"\n\"skatepark\" → \"Skatepark\"\n\"carving\" → \"Carving\"\n\"cruising\" → \"Cruising\"\n\nRIDING LEVEL MAPPING:\n\"beginner\" → \"Principiante\"\n\"principiante\" → \"Principiante\"\n\"intermediate\" → \"Intermedio\"\n\"intermedio\" → \"Intermedio\"\n\"advanced\" → \"Avanzato\"\n\"avanzato\" → \"Avanzato\"\n\"expert\" → \"Esperto\"\n\"esperto\" → \"Esperto\"\n\nFLEX MAPPING:\n\"soft\" → \"Morbido\"\n\"morbido\" → \"Morbido\"\n\"medium_soft\" → \"Medio-Morbido\"\n\"medio_morbido\" → \"Medio-Morbido\"\n\"medium\" → \"Medio\"\n\"medio\" → \"Medio\"\n\"medium_stiff\" → \"Medio-Rigido\"\n\"medio_rigido\" → \"Medio-Rigido\"\n\"stiff\" → \"Rigido\"\n\"rigido\" → \"Rigido\"\n\nFIT MAPPING:\n\"slim\" → \"Slim fit\"\n\"slim_fit\" → \"Slim fit\"\n\"regular\" → \"Regular fit\"\n\"regular_fit\" → \"Regular fit\"\n\"baggy\" → \"Baggy (Loose fit)\"\n\"loose\" → \"Baggy (Loose fit)\"\n\"oversize\" → \"Oversize\"\n\"oversized\" → \"Oversize\"\n\nWATERPROOFING MAPPING:\n\"5000\" → \"5000 mm\"\n\"10000\" → \"10000 mm\"\n\"15000\" → \"15000 mm\"\n\"20000\" → \"20000 mm\"\n\"25000\" → \"25000 mm\"\n\"gore_tex\" → \"Gore-Tex\"\n\"gore-tex\" → \"Gore-Tex\"\n\"goretex\" → \"Gore-Tex\"\n\nBREATHABILITY MAPPING:\n\"5000\" → \"5000 g\"\n\"10000\" → \"10000 g\"\n\"15000\" → \"15000 g\"\n\"20000\" → \"20000 g\"\n\nINSULATION MAPPING:\n\"shell\" → \"Shell\"\n\"light\" → \"Leggero\"\n\"leggero\" → \"Leggero\"\n\"medium\" → \"Medio\"\n\"medio\" → \"Medio\"\n\"warm\" → \"Caldo\"\n\"caldo\" → \"Caldo\"\n\nSIZE MAPPING:\n\"xxs\" → \"XXS\"\n\"xs\" → \"XS\"\n\"s\" → \"S\"\n\"m\" → \"M\"\n\"l\" → \"L\"\n\"xl\" → \"XL\"\n\"xxl\" → \"XXL\"\n\nINSEAM MAPPING:\n\"28\" → \"L28\"\n\"30\" → \"L30\"\n\"32\" → \"L32\"\n\"34\" → \"L34\"\n\"36\" → \"L36\"\n\"l28\" → \"L28\"\n\"l30\" → \"L30\"\n\"l32\" → \"L32\"\n\"l34\" → \"L34\"\n\"l36\" → \"L36\"\n\nWAIST MAPPING:\n\"24\" → \"W24\" | \"w24\" → \"W24\"\n\"25\" → \"W25\" | \"w25\" → \"W25\"\n\"26\" → \"W26\" | \"w26\" → \"W26\"\n\"27\" → \"W27\" | \"w27\" → \"W27\"\n\"28\" → \"W28\" | \"w28\" → \"W28\"\n\"29\" → \"W29\" | \"w29\" → \"W29\"\n\"30\" → \"W30\" | \"w30\" → \"W30\"\n\"31\" → \"W31\" | \"w31\" → \"W31\"\n\"32\" → \"W32\" | \"w32\" → \"W32\"\n\"33\" → \"W33\" | \"w33\" → \"W33\"\n\"34\" → \"W34\" | \"w34\" → \"W34\"\n\"36\" → \"W36\" | \"w36\" → \"W36\"\n\"38\" → \"W38\" | \"w38\" → \"W38\"\n\nCLOSURE SYSTEM MAPPING:\n\"lace\" → \"Lacci\"\n\"laces\" → \"Lacci\"\n\"lacci\" → \"Lacci\"\n\"boa\" → \"BOA\"\n\"double_boa\" → \"Doppio BOA\"\n\"doppio_boa\" → \"Doppio BOA\"\n\"dual_boa\" → \"Doppio BOA\"\n\"hybrid\" → \"Ibrido\"\n\"ibrido\" → \"Ibrido\"\n\nDISK COMPATIBILITY MAPPING:\n\"standard\" → \"Standard disc\"\n\"standard_disc\" → \"Standard disc\"\n\"mini\" → \"Mini disc\"\n\"mini_disc\" → \"Mini disc\"\n\"channel\" → \"Channel disk\"\n\"channel_disk\" → \"Channel disk\"\n\nTARGET GENDER MAPPING:\n\"uomo\" → \"Male\"\n\"male\" → \"Male\"\n\"donna\" → \"Female\"\n\"female\" → \"Female\"\n\"bambino\" → \"Kids\"\n\"kids\" → \"Kids\"\n\"unisex\" → \"Unisex\"\n\nAGE GROUP MAPPING:\n\"adult\" → \"Adults\"\n\"adults\" → \"Adults\"\n\"kid\" → \"Kids\"\n\"kids\" → \"Kids\"\n\"youth\" → \"Youth\"\n\"junior\" → \"Kids\"\n\nSKILL LEVEL MAPPING:\n\"beginner\" → \"Beginner\"\n\"principiante\" → \"Beginner\"\n\"intermediate\" → \"Intermediate\"\n\"intermedio\" → \"Intermediate\"\n\"advanced\" → \"Advanced\"\n\"avanzato\" → \"Advanced\"\n\"expert\" → \"Expert\"\n\"esperto\" → \"Expert\"\n\nSNOWBOARDING STYLE MAPPING:\n\"freestyle\" → \"Freestyle\"\n\"all_mountain\" → \"All Mountain\"\n\"all mountain\" → \"All Mountain\"\n\"freeride\" → \"Freeride\"\n\"park\" → \"Park\"\n\"powder\" → \"Powder\"\n\"backcountry\" → \"Backcountry\"\n\nSNOWBOARD DESIGN MAPPING:\n\"twin\" → \"Twin\"\n\"directional_twin\" → \"Directional Twin\"\n\"directional\" → \"Directional\"\n\"tapered\" → \"Tapered\"\n\"asymmetrical\" → \"Asymmetrical\"\n\nSNOWBOARD CONSTRUCTION MAPPING:\n\"camber\" → \"Camber\"\n\"rocker\" → \"Rocker\"\n\"flat\" → \"Flat\"\n\"hybrid_camber\" → \"Hybrid Camber\"\n\"hybrid camber\" → \"Hybrid Camber\"\n\"hybrid_rocker\" → \"Hybrid Rocker\"\n\"hybrid rocker\" → \"Hybrid Rocker\"\n\nCOLOR MAPPING:\n\"multicolor\" → \"Multicolore\"\n\"multicolore\" → \"Multicolore\"\n\"black\" → \"Nero\"\n\"nero\" → \"Nero\"\n\"white\" → \"Bianco\"\n\"bianco\" → \"Bianco\"\n\"red\" → \"Rosso\"\n\"rosso\" → \"Rosso\"\n\"blue\" → \"Blu\"\n\"blu\" → \"Blu\"\n\"green\" → \"Verde\"\n\"verde\" → \"Verde\"\n\"yellow\" → \"Giallo\"\n\"giallo\" → \"Giallo\"\n\"orange\" → \"Arancione\"\n\"arancione\" → \"Arancione\"\n\"purple\" → \"Viola\"\n\"viola\" → \"Viola\"\n\"grey\" → \"Grigio\"\n\"gray\" → \"Grigio\"\n\"grigio\" → \"Grigio\"\n\"brown\" → \"Marrone\"\n\"marrone\" → \"Marrone\"\n\"pink\" → \"Rosa\"\n\"rosa\" → \"Rosa\"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nJSON OUTPUT — exact structure, no extra or missing keys\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{\n  \"product_type\": \"\",\n  \"category\": \"[Level 4]\",\n  \"tags\": \"\",\n  \"handle_it\": \"\",\n  \"handle_en\": \"\",\n  \"handle_fr\": \"\",\n  \"handle_de\": \"\",\n  \"handle_es\": \"\",\n  \"image_alt_text\": \"v1|v2|v3|v4|v5|v6|v7|v8|v9|v10\",\n  \"seo_title_original\": \"\",\n  \"meta_title_original\": \"\",\n  \"html_body_original\": \"\",\n  \"html_body_it\": \"\",\n  \"html_body_en\": \"\",\n  \"html_body_fr\": \"\",\n  \"html_body_de\": \"\",\n  \"html_body_es\": \"\",\n  \"seo_body_original\": \"\",\n  \"meta_title_it\": \"\",\n  \"meta_title_en\": \"\",\n  \"meta_title_fr\": \"\",\n  \"meta_title_de\": \"\",\n  \"meta_title_es\": \"\",\n  \"meta_description_it\": \"\",\n  \"meta_description_en\": \"\",\n  \"meta_description_fr\": \"\",\n  \"meta_description_de\": \"\",\n  \"meta_description_es\": \"\",\n  \"short_description_it\": \"plaintext...|Pleasure Milano\",\n  \"short_description_en\": \"plaintext...|Pleasure Milano\",\n  \"short_description_fr\": \"plaintext...|Pleasure Milano\",\n  \"short_description_de\": \"plaintext...|Pleasure Milano\",\n  \"short_description_es\": \"plaintext...|Pleasure Milano\",\n  \"gender\": \"\",\n  \"availability\": \"\",\n  \"size\": \"\",\n  \"length\": \"\",\n  \"inseam\": \"\",\n  \"waist\": \"\",\n  \"shoe_size_eu\": \"\",\n  \"snowboard_width\": \"\",\n  \"snowboard_profile\": \"\",\n  \"shape\": \"\",\n  \"riding_style\": \"\",\n  \"riding_level\": \"\",\n  \"flex\": \"\",\n  \"fit\": \"\",\n  \"waterproofing\": \"\",\n  \"breathability\": \"\",\n  \"insulation\": \"\",\n  \"board_width\": \"\",\n  \"wheel_diameter\": \"\",\n  \"wheel_hardness\": \"\",\n  \"truck_width\": \"\",\n  \"truck_height\": \"\",\n  \"concave\": \"\",\n  \"lunghezza_tavola\": \"\",\n  \"sistema_chiusura_scarponi\": \"\",\n  \"disk_compatibilita\": \"\",\n  \"target_gender\": \"\",\n  \"age_group\": \"\",\n  \"recommended_skill_level\": \"\",\n  \"snowboarding_style\": \"\",\n  \"snowboard_design\": \"\",\n  \"snowboard_construction\": \"\",\n  \"color\": \"\"\n}"
+                                    },
+                                    {
+                                        "role": "user",
+                                        "content": "Generate all req{{3.`45`}}{{3.`45`}}uired content and fill empty fields\nfor this product.\n\nIMPORTANT RULES:\n- If a field already has a value below → keep it exactly\n- Only generate values for empty fields that are\n  relevant to this product type\n- Determine product type first before generating anything\n- Leave non-relevant fields as empty string \"\"\n\n- PRODUCT DATA:\nTitle: {{3.`0`}}\nBrand / Vendor: {{3.`8`}}\nProduct Type: {{3.`9`}}\nMain Category: {{3.`11`}}\nSubcategory: {{3.`9`}}\nGender: {{3.`23`}}\nAvailability: {{3.`24`}}\nSize type: {{3.`25`}}\nSize: {{3.`26`}}\nLength: {{3.`27`}}cm\nInseam: {{3.`28`}}\nWaist: {{3.`29`}}\nShoe size EU: {{3.`30`}}\nSnowboard width: {{3.`31`}}\nSnowboard profile: {{3.`32`}}\nShape: {{3.`33`}}\nRiding style: {{3.`34`}}\nRiding level: {{3.`35`}}\nFlex: {{3.`36`}}\nFit: {{3.`37`}}\nWaterproofing: {{3.`39`}}\nBreathability: {{3.`39`}}\nInsulation: {{3.`40`}}\nBoard width: {{3.`41`}}\nWheel diameter: {{3.`42`}}\nWheel hardness: {{3.`43`}}\nTruck width: {{3.`44`}}\nTruck height: {{3.`45`}}\nConcave: {{3.`46`}}\nMASTER TAG LIST — select ONLY from these:\n'93 Work, 1 1/2\", 1\", 1/4\", 1/8, 10\", 10.25\", 10.34\",\n10.5\", 10.75\", 10.9\", 100A, 101A, 102A, 103A, 104A,\n120, 129, 130, 135, 137, 138, 139, 141, 143, 144, 145,\n146, 147, 148, 149, 150, 150MM, 151, 152, 153, 154, 155,\n155 WIDE, 156, 156 WIDE, 157, 157 WIDE, 158, 158 WIDE,\n159, 159 WIDE, 160, 160 WIDE, 161, 161 WIDE, 162,\n162 WIDE, 163, 165, 165MM, 169, 180MM, 22\", 24\", 25\",\n26\", 27\", 27.5\", 27.7, 28\", 28.5\", 28.75\", 29\", 29.05\",\n29.4\", 29.5, 29.75\", 29.95\", 30\", 30.2\", 30.375, 30.5\",\n30.75\", 31\", 31.125\", 31.13\", 31.25\", 31.45\", 31.5\",\n31.7, 31.75\", 32\", 32.26\", 32.375\", 32.5\", 33\", 33.5\",\n33.75\", 33.85\", 34\", 34.5\", 35\", 36\", 36.5\", 37\", 37.5\",\n37.52\", 37.8\", 37.85\", 38\", 38.5\", 38.9\", 39\", 39.4\",\n39.5\", 39.8\", 3MC, 3st.004, 40\", 41\", 41.5, 41.65\", 42\",\n44, 46\", 47\", 5.0, 5.2, 5.25, 5.37, 5.4\", 5.5\", 5.6\",\n5.75\", 5.8, 50MM, 51MM, 52.5MM, 52mm, 53, 53.5MM, 53MM,\n54MM, 55, 55mm, 56A, 56MM, 57MM, 58A, 58MM, 59MM, 6.0\",\n6.37, 6.75\", 60MM, 61MM, 62MM, 64MM, 65MM, 69MM, 7, 7.0\",\n7.25\", 7.3\", 7.375\", 7.38\", 7.5\", 7.6\", 7.625\", 7.675\",\n7.75\", 7.78\", 7.8\", 7.87\", 7.875\", 7.88\", 7.9\", 70mm,\n71MM, 72MM, 75A, 75MM, 77A, 78a, 8, 8.0, 8.05\", 8.06\",\n8.1\", 8.12\", 8.125, 8.13\", 8.18\", 8.187, 8.19\", 8.25,\n8.27\", 8.28\", 8.3\", 8.37\", 8.375, 8.38, 8.3875\", 8.4\",\n8.47\", 8.475, 8.5, 8.51\", 8.53\", 8.59\", 8.6\", 8.62\",\n8.625\", 8.675\", 8.725\", 8.75, 8.8\", 8.875\", 8.9, 80A,\n80B, 80MM, 81B, 82A, 83A, 83B, 84B, 85A, 85MM, 86a,\n86mm, 873, 874, 87A, 88A, 9\", 9.0\", 9.125, 9.13, 9.25\",\n9.265, 9.3\", 9.375\", 9.38\", 9.5\", 9.55\", 9.625\", 9.75\",\n9.85\", 9.89\", 9.9, 90A, 91A, 92a, 93A, 94A, 95a, 96A,\n97A, 98A, 99A, abbigliamento-snowboard, Abec 3, abec 5,\nAbec 7, Abec 9, accessori, accessori-skateboard, ace,\nAdi Ease, Adidas, Adult, AF1, Alien Workshop, almost,\nAloha Super, aloiki, Altai, andalè, Anorak, Anti Hero,\nantihero, arbor, asciugamano, assassin, assassin pro,\nAstral, atlas, atlas pro, attacchi-snowboard, aviation,\naviation pant, axtion, B NICE, B4BC, baca, backpack, bag,\nbaker, beanie, bearings, beast, bent metal, BIB,\nbig blazer, big boy, Birdhouse, black-friday, blind,\nBlueprint, Blurs, BOA, boa jones, bones bearings,\nBones wheels, Borsa, bradley, Breana IZZY, brigade,\nBronson, bucket, Bullet, Burner, burton, Busenitz,\nbusenitz vulc, bushing, C7, cadet pro, calze,\ncalze-skate, calze-snowboard, Cambridge, camicia,\ncamicie, camo, campus, campus 00, canotta, capita,\ncapita snowboard, cappellini, cappellino, cargo,\ncargo short, carhartt, carhartt wip, cariuma, carpenter,\nCarver, cascade, CASCO, casco-skate, casco-snowboard,\ncatiba pro, celsius, Celsius CT, Cera, cera-skate,\nCeramic, charger, CHARGERS, cheaat code youth,\ncheapshots, cheat code men, cheat code woman,\nchildren of gnar, Chino, chinos, chisel, chocolate,\nchromantic, Chukka Low, ciabatta, cinetic, cintura,\ncintura-uomo, Circa, cj collin, classic bearings,\nclassic F4, Clichè, coach jacket, Cold brew, collana,\nComanche, conical full, conical full F4, copa nationale,\ncord, Corpus, costume, costumi, craft, creature,\ncrewneck, cruiser, cruiser-skateboard, cruzade, Cuba,\ncuscinetti, cuscinetti-skate, CX, d street, D3, dakine,\nDaly, dancing, dark horse, darkroom, darkstar,\nDAY TRIPPER, dc, Dc shoes, deathwish, deck bag, denim,\ndenim '93, Detroit Jacket, dgk, Dialogue, diamond,\ndickies, district, DOA, dollin, dolly noire, doom sayers,\ndouble boa, double knee, dragon, drop through, dual boa,\nDuffle, dusters, Dvs, Dvs shoes, eagle bend, EDB, elle,\nEnduro 125, Enduro Heir, enjoi, equalizer, Era,\nescape plus, essential, essex, everslick, evisen, F4,\nFACTION, falcor, Fanning, fase, fastlane,\nfelpa cappuccio, felpa donna, felpa-girocollo,\nfelpa-uomo, figgy, film, flaco, flagship, flagship pro,\nflexfit, flip, forged, formula four, forum, foundation,\nfrankie villani, freeride, Fremont, fusion, G0, G1, G2,\nG3, garyville, Gazelle, geminon, giacca snowboard,\ngiacca streetwear, giacca-snowboard,\ngiacca-snowboard-bambini, giacca-snowboard-donna,\ngiacca-snowboard-uomo, giacche, giacchetta,\nGilbert Crockett, Girl, Girocollo, Globe, GLOSS, glove,\nGnu snowboard, goggles, gommini, gore tex, Griffin,\nGriffin gass, Grimm 2, grip-skate, griptape, Grizzly,\nGrund Chinos, Gs, guanti snow, guanti-snowboard,\ngucci strip, Habitat, Half Cab, hard, Hard Luck,\nHardcore, Hat Tag, Havoc, hazard wheels, Haze, HELMET,\nhighpath, hollow, hologram, hoodie, hoodie donna, hopps,\nhowler, Huck Knife pro, hydroponic, Impala, independent,\ninfinity, inpeddo, intimo-termico-snowboard, iron, isle,\nIuter, ivy boa, jacket, jacopo carozzi, jacuzzi, jaket,\njart, Jesse Kimura Mini, jogger, JOINT, Jones,\nJones Snowboard, Jp Walker, JR, judge, juliet, kader,\nKAON, kaon x, Kiana, kids, knit, krooked, krux,\nKyle Walker, la costa slide, Lakai, landon, lanuch,\nLarge, LASHED, Liberty Cup, Libtech,\nlighting supermatic, liner, Lo Fi, long island,\nlong sleeve, longboard, longboard-truck, Los Angered II,\nlove wax, lumin, lurkville, Made to Order, madness,\nmagenta, magic, maglioni, Mahalo, Mahalo Plus,\nmanchester, Marcus Kleveland, mark suciu, marsupio,\nmaschera-snowboard, Master Short, matchbreak, maxallure,\nmedium, mega death, mega merc, meraky, mercury, mid,\nMilitia, Militia Boot, Militia CT, miller, Millerville,\nmitt, mob, Modus, money, montaggio, mosaic,\nmother collective, Motley Mid, mountain twin pro,\nmuon x, naioca, navigator split, navy camo, necklace,\nNewport, Nidecker, Nidecker Snowboard, nitro snowboard,\nnizza, nora, novita, Ocean Pacific, Octopus, off ramp,\nOG Classics, OG classics F4, OJ WHEELS, old skool,\none o one, OP1UM, Ora, Orangatang wheels, orange, ORCA,\nOsiris, out of, outerspace, outerspace living, pant,\npantaloncini, pantaloncini-corti, pantalone tuta,\npantaloni, pantaloni-snowboard, paradise, Paris trucks,\npass port, pearl, penny, Peril, phantom, phase,\nphase pro, Phillips, photocromic, piccoli-accessori,\npig, pile, pin, pink camo, pinner, pintail, pizza,\nplan b, plaza, Pleasures skateboards, poetic, polar,\npopsicle, portachiavi, portafogli, Portal, posicle,\npowell peralta, prime 8, primitive, primitive megadeth,\npro tec, propaganda, protezioni-skateboard,\nprotezioni-snowboard, Protocol, prowler, Puig, Pure,\npurple, pxv, quasi, quiksilver, r1, RADIUM PRO SIGMA,\nrail-skate, rails, Rally cat, Rasta, Rayne, real,\nred&green, reissue, reset pro, reynolds, Rhythm,\nRicta wheels, Riley 2, Riley 3, riley hawk, ripndip,\nrowan, ruote, ruote-longboard, ruote-skateboard, rythm,\nSabre, sacca-snowboard, sacco, salomon,\nSalomon snowboard, salopette snowboard, salvas, samba,\nsanta cruz, Satori wheels, scarpe-da-skate-sneakers,\nscarponi-snowboard, Sensor, sensor pro, Sensor team,\nsensor woman, sensor youth, sentinel, SENTRY PRIME,\nSENTRY PRO SIGMA, SG allover, shake junt, SHANE O NEILL,\nshaped, Sheffield, shifty boa, shifty boa woman,\nShirt Tag, shmoo knit, shock-pads-riser-pads, short,\nshorts, sierra, Sight, silver, simple pant, single knee,\nSk8 Hi, sk8 low, sk8mafia, skate mental,\nskate-bushings, skate-tool, skateboard,\nskateboard cafè, skateboard-completi, SKF, skins nomad,\nsleepwalker, Slick, Slime Balls, Slip On, slip on pro,\nsmall, smanicato, snapback, SNOWBOARD,\nsnowboard-overalls, SOCKS, soft, Solution, souljah,\nsour, sovrn, space metal fantasy, spanky, spilla,\nSpitfire, spitfire wheels, splitboard, spring break,\nStag, Stan Smith, step on, stereo, storden, str, strata,\nstratos, Streetwear, stw, sun city, Supermatic,\nSupermatic LT, supermatic og, Superstar, Supra,\nsurf skate, surfskate, Surplus, sushi trucks,\nsweat shorts, t shirt, t-funk, t-shirt,\nt-shirt-manica-lunga, Tablets F4, tangent, tappeto,\ntavola-skate, tavola-snowboard, tavola-snowboard-bambino,\ntavola-snowboard-donna, tavola-snowboard-uomo, tavole,\nteam, team pro, team pro wide, tee, tensor, terminator,\nterrex, the black snowboard of death, the killing floor,\nThe national skateboard co., The New Deal,\ntheories of atlantis, theotis, thirty two, thrasher,\nTHUNDER, tie die, Tie Dye, Tilt, Titanium, tls, TM,\nTM-2, tm3, Tonik, tool, toy machine, tracolla, traffic,\ntransfert, Trase SD, Trase TX, trasher, tremendous,\nTricks, trilogy, trolley, TRS, truck-skate, TRUCKER,\nTruster, tshirt manica lunga, tweaker, tweaker pro,\nTwin sister, tyshawn, tyson, ultra, Uma, union,\nunion bindings, Vallely, Vallely pro, vans, venture,\nVenture Trucks, vest, viti-skateboard, volcom, VX,\nwave blazer, Wayvee, Wayward wheels, wesley pant,\nwhipstar, wristguard, x large, xa supermatic, xlarge,\nXLT, Youth, yow, Yuto, z-flex, zahba, zaino,\nzaino-skate, zaino-snowboard, zero, zero skateboards,\nzion, zip, Zoo York, zupply"
+                                    }
+                                ],
+                                "max_tokens": "4000",
+                                "n_completions": "1",
+                                "response_format": "json_object",
+                                "parseJSONResponse": true
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 600,
+                                    "y": 450
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "openai-gpt-3"
+                                            },
+                                            "label": "Chat GPT Pleasures Connection"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 7,
+                            "module": "serpapi:searchGoogleImages",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_13962980"
+                            },
+                            "mapper": {
+                                "q": "{{6.result.handle_en}} {{3.`0`}} Official product high resolution",
+                                "gl": "us",
+                                "hl": "en",
+                                "tbs": "isz:l",
+                                "nfpr": true,
+                                "safe": "active",
+                                "filter": true,
+                                "output": "json",
+                                "location": "United States",
+                                "no_cache": true,
+                                "google_domain": "google.com",
+                                "pagination_limit": "1"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 900,
+                                    "y": 450
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "serpapi"
+                                            },
+                                            "label": "My SerpApi connection (pleasuresmilano.com@gmail.com)"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 8,
+                            "module": "code:ExecuteCode",
+                            "version": 1,
+                            "parameters": {},
+                            "mapper": {
+                                "input": [
+                                    {
+                                        "name": "serpResults",
+                                        "value": "{{7.images_results}}"
+                                    }
+                                ],
+                                "language": "javascript",
+                                "inputFormat": "editor",
+                                "dependencies": [],
+                                "codeEditorJavascript": "var allImages = input.serpResults || [];\n\nvar MIN_WIDTH = 800;\nvar MIN_HEIGHT = 800;\nvar ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];\n\nfunction hasValidExtension(url) {\n    if (!url || typeof url !== 'string') return false;\n    var cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();\n    for (var i = 0; i < ALLOWED_EXTENSIONS.length; i++) {\n        if (cleanUrl.indexOf(ALLOWED_EXTENSIONS[i], cleanUrl.length - ALLOWED_EXTENSIONS[i].length) !== -1) {\n            return true;\n        }\n    }\n    return false;\n}\n\nfunction isValidUrl(url) {\n    if (!url || typeof url !== 'string') return false;\n    if (url.length < 10) return false;\n    if (url.indexOf('http') !== 0) return false;\n\n    var blocked = ['gstatic.com','google.com','googleapis.com','bing.com','yahoo.com','favicon','icon','logo','thumbnail','sprite'];\n    var lowerUrl = url.toLowerCase();\n    for (var i = 0; i < blocked.length; i++) {\n        if (lowerUrl.indexOf(blocked[i]) !== -1) return false;\n    }\n    return true;\n}\n\nvar filteredImages = [];\nfor (var i = 0; i < allImages.length; i++) {\n    var image = allImages[i];\n    var url = image.original || '';\n    var width = image.original_width || image.width || 0;\n    var height = image.original_height || image.height || 0;\n\n    if (!isValidUrl(url)) continue;\n    if (!hasValidExtension(url)) continue;\n    if (width < MIN_WIDTH || height < MIN_HEIGHT) continue;\n\n    filteredImages.push(image);\n}\n\nvar selectedImages = filteredImages.slice(0, 10);\n\nvar imageUrls = [];\nvar imageDimensions = [];\nvar imageSources = [];\n\nfor (var j = 0; j < selectedImages.length; j++) {\n    imageUrls.push(selectedImages[j].original || '');\n    imageSources.push(selectedImages[j].source || '');\n    var w = selectedImages[j].original_width || selectedImages[j].width || 0;\n    var h = selectedImages[j].original_height || selectedImages[j].height || 0;\n    imageDimensions.push(w + 'x' + h);\n}\n\nreturn {\n    images_csv: imageUrls.join(','),\n    images_pipe: imageUrls.join('|'),\n    image_1: imageUrls[0] || '',\n    image_2: imageUrls[1] || '',\n    image_3: imageUrls[2] || '',\n    image_4: imageUrls[3] || '',\n    image_5: imageUrls[4] || '',\n    image_6: imageUrls[5] || '',\n    image_7: imageUrls[6] || '',\n    image_8: imageUrls[7] || '',\n    image_9: imageUrls[8] || '',\n    image_10: imageUrls[9] || '',\n    dimensions_csv: imageDimensions.join(','),\n    sources_csv: imageSources.join(','),\n    total_found: allImages.length,\n    total_valid: filteredImages.length,\n    total_selected: selectedImages.length,\n    has_images: selectedImages.length > 0,\n    filter_summary: 'Found ' + allImages.length + ' total > ' + filteredImages.length + ' passed > ' + selectedImages.length + ' selected'\n};"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 1200,
+                                    "y": 450,
+                                    "name": "Filtered Images"
+                                }
+                            }
+                        },
+                        {
+                            "id": 9,
+                            "module": "code:ExecuteCode",
+                            "version": 1,
+                            "parameters": {},
+                            "mapper": {
+                                "input": [
+                                    {
+                                        "name": "rawImages",
+                                        "value": "{{8.result.image_1}},{{8.result.image_2}},{{8.result.image_3}},{{8.result.image_4}},{{8.result.image_5}},{{8.result.image_6}},{{8.result.image_7}},{{8.result.image_8}},{{8.result.image_9}},{{8.result.image_10}}"
+                                    },
+                                    {
+                                        "name": "handle",
+                                        "value": "{{6.result.handle}}"
+                                    }
+                                ],
+                                "language": "javascript",
+                                "inputFormat": "editor",
+                                "dependencies": [],
+                                "codeEditorJavascript": "var urls = input.rawImages.split(',');\nvar handle = input.handle;\n\nvar cleanUrls = [];\nfor (var i = 0; i < urls.length; i++) {\n    var url = urls[i].trim();\n    if (url && url.length > 10 && url.indexOf('http') === 0) {\n        cleanUrls.push(url);\n    }\n}\n\nreturn {\n    clean_urls: cleanUrls,\n    total_images: cleanUrls.length,\n    handle: handle\n};"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 1500,
+                                    "y": 450,
+                                    "name": "clean Urls"
+                                }
+                            }
+                        },
+                        {
+                            "id": 10,
+                            "module": "builtin:BasicFeeder",
+                            "version": 1,
+                            "parameters": {},
+                            "mapper": {
+                                "array": "{{9.result.clean_urls}}"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 1800,
+                                    "y": 450
+                                }
+                            }
+                        },
+                        {
+                            "id": 11,
+                            "module": "cloudinary:MakeApiCall",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_13830364"
+                            },
+                            "mapper": {
+                                "url": "/image/upload",
+                                "body": "{\n  \"file\": \"{{10.value}}\",\n  \"public_id\": \"{{6.result.handle_en}}\",\n  \"folder\": \"products\",\n  \"eager\": \"e_background_removal/b_white/c_pad,ar_1:1,g_center,w_2000,h_2000/q_auto:best/f_webp\",\n  \"eager_async\": false\n}",
+                                "method": "POST",
+                                "headers": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ]
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 2100,
+                                    "y": 450,
+                                    "name": "Upload image"
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "cloudinary"
+                                            },
+                                            "label": "CRIS (dbdfsex4c)"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 12,
+                            "module": "util:TextAggregator",
+                            "version": 1,
+                            "parameters": {
+                                "feeder": 10,
+                                "rowSeparator": "other",
+                                "otherRowSeparator": ","
+                            },
+                            "mapper": {
+                                "value": "{{11.body.eager[].url}}"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 2400,
+                                    "y": 450,
+                                    "name": "Cloudinary Image URL"
+                                }
+                            }
+                        },
+                        {
+                            "id": 13,
+                            "module": "util:SetVariables",
+                            "version": 1,
+                            "parameters": {},
+                            "mapper": {
+                                "scope": "roundtrip",
+                                "variables": [
+                                    {
+                                        "name": "alt_texts_array",
+                                        "value": "{{split(6.result.image_alt_text; \"|\")}}"
+                                    },
+                                    {
+                                        "name": "tags",
+                                        "value": "{{split(6.result.tags; \",\")}}"
+                                    },
+                                    {
+                                        "name": "Larghezza",
+                                        "value": "{{if(6.result.snowboard_width = \"Wide\"; \"Wide\"; \"Standard\")}}"
+                                    },
+                                    {
+                                        "name": "title DIGEST",
+                                        "value": "22ef446ed5e4080276446c48453d1f36c6cb092da400d3d5923caf5fcde0ce28"
+                                    },
+                                    {
+                                        "name": "body_html DIGEST",
+                                        "value": "d2ac74ac31e048fcb367cd81f91fd1db63c566bc59113dcd9e5e8dd4dab7e7c9"
+                                    },
+                                    {
+                                        "name": "handle DIGEST",
+                                        "value": "626442bffa7774549e458b6c32c5d1e95694111c86805dd0210a6dd2e9f1789c"
+                                    },
+                                    {
+                                        "name": "product_type DIGEST",
+                                        "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                    }
+                                ]
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 2700,
+                                    "y": 450,
+                                    "name": "Tags, and Alt Text Setter"
+                                }
+                            }
+                        },
+                        {
+                            "id": 14,
+                            "module": "shopify:makeAnApiCall",
+                            "version": 3,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12834461"
+                            },
+                            "mapper": {
+                                "query": "query SearchTaxonomyCategories($search: String!, $first: Int = 20) {\n  taxonomy {\n    categories(search: $search, first: $first) {\n      nodes {\n        id\n        fullName\n        name\n        isLeaf\n        level\n      }\n    }\n  }\n}",
+                                "version": "2025-07",
+                                "variables": "{\n  \"search\": \"{{6.result.category}}\",\n  \"first\": 10\n}",
+                                "handleErrors": true,
+                                "flattenResponse": true,
+                                "variablesDataSource": "object"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 3000,
+                                    "y": 450,
+                                    "name": "get Taxonomy ID"
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "shopify4"
+                                            },
+                                            "label": "My Shopify (Custom app) connection (pleasures-milano-official.myshopify.com)"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 15,
+                            "module": "openai-gpt-3:createModelResponse",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12863067"
+                            },
+                            "mapper": {
+                                "input": "SYSTEM: You are a Shopify taxonomy classifier.\n\nRULES:\n- Choose ONLY from the provided list.\n- Return ONLY valid JSON. No markdown, no explanations.\n- If the product is action sports (snowboard/skate), prefer Sporting Goods.\n\nPRODUCT DATA:\n- Title: {{3.`0`}}\n- Brand: {{3.`8`}}\n- Product Type: {{3.`9`}}\n- Tags: {{ifempty(3.`7`; 13.tags)}}\n- Google Sheets Category (if you have it): {{3.`11`}}\n\nROOT CATEGORIES JSON:\n{{14.body.data.taxonomy.categories}}\nRETURN JSON ONLY:\n\n{\n  \"selected_id\": \"\",\n  \"selected_name\": \"\"\n}",
+                                "model": "gpt-4o",
+                                "store": true,
+                                "format": {
+                                    "type": "json_object"
+                                },
+                                "reasoning": {},
+                                "background": false,
+                                "truncation": "auto",
+                                "inputContentType": "text",
+                                "createConversation": true,
+                                "parallel_tool_calls": true
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 3300,
+                                    "y": 450,
+                                    "name": "Match Category ID with Maibn Category"
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "openai-gpt-3"
+                                            },
+                                            "label": "Chat GPT Pleasures Connection"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 16,
+                            "module": "shopify:createProduct",
+                            "version": 3,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12834461"
+                            },
+                            "mapper": {
+                                "tags": "{{13.tags}}",
+                                "media": [
+                                    {
+                                        "alt": "{{13.alt_texts_array[1]}}",
+                                        "originalSource": "{{8.result.image_1}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[2]}}",
+                                        "originalSource": "{{8.result.image_2}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[3]}}",
+                                        "originalSource": "{{8.result.image_3}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[4]}}",
+                                        "originalSource": "{{8.result.image_4}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[5]}}",
+                                        "originalSource": "{{8.result.image_5}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[6]}}",
+                                        "originalSource": "{{8.result.image_6}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[7]}}",
+                                        "originalSource": "{{8.result.image_7}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[8]}}",
+                                        "originalSource": "{{8.result.image_8}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[9]}}",
+                                        "originalSource": "{{8.result.image_9}}",
+                                        "mediaContentType": "IMAGE"
+                                    },
+                                    {
+                                        "alt": "{{13.alt_texts_array[10]}}",
+                                        "originalSource": "{{8.result.image_10}}",
+                                        "mediaContentType": "IMAGE"
+                                    }
+                                ],
+                                "title": "{{3.`0`}}",
+                                "handle": "{{6.result.handle_en}}",
+                                "status": "DRAFT",
+                                "vendor": "{{3.`8`}}",
+                                "category": "{{15.result.selected_id}}",
+                                "productType": "{{6.result.product_type}}",
+                                "descriptionHtml": "{{6.result.html_body_it}}"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 3600,
+                                    "y": 450
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "shopify4"
+                                            },
+                                            "label": "My Shopify (Custom app) connection (pleasures-milano-official.myshopify.com)"
+                                        }
+                                    }
+                                }
+                            },
+                            "onerror": [
+                                {
+                                    "id": 17,
+                                    "module": "builtin:Ignore",
+                                    "version": 1,
+                                    "filter": {
+                                        "name": "Catch all",
+                                        "conditions": []
+                                    },
+                                    "metadata": {
+                                        "designer": {
+                                            "x": 3900,
+                                            "y": 600
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "id": 18,
+                            "module": "code:ExecuteCode",
+                            "version": 1,
+                            "parameters": {},
+                            "mapper": {
+                                "input": [
+                                    {
+                                        "name": "result",
+                                        "value": "{{6.result}}"
+                                    },
+                                    {
+                                        "name": "gtin",
+                                        "value": "{{3.`15`}}"
+                                    }
+                                ],
+                                "language": "javascript",
+                                "inputFormat": "editor",
+                                "dependencies": [],
+                                "codeEditorJavascript": "// Build a clean metafields array, skipping any empty values.\n// Shopify's productUpdate rejects the WHOLE write if any metafield value is blank\n// (\"Value can't be blank\"), so we must omit empty fields entirely.\nvar r = input.result || {};\nvar gtin = (input.gtin == null ? '' : String(input.gtin)).trim();\n\n// [ metafield key , source field on 88.result , type ]\nvar MAP = [\n  ['genere','gender','single_line_text_field'],\n  ['disponibilita','availability','single_line_text_field'],\n  ['taglia_abbigliamento','size','single_line_text_field'],\n  ['lunghezza_snowboard','length','single_line_text_field'],\n  ['larghezza_snowboard','snowboard_width','single_line_text_field'],\n  ['profilo','snowboard_profile','single_line_text_field'],\n  ['shape','shape','single_line_text_field'],\n  ['utillizzo','riding_style','single_line_text_field'],\n  ['livello','riding_level','single_line_text_field'],\n  ['flex','flex','single_line_text_field'],\n  ['variant_size','shoe_size_eu','single_line_text_field'],\n  ['fit_abbigliamento','fit','single_line_text_field'],\n  ['taglia_pantaloni','waist','single_line_text_field'],\n  ['lunghezza_l','inseam','single_line_text_field'],\n  ['impermeabilita','waterproofing','single_line_text_field'],\n  ['traspirabilita','breathability','single_line_text_field'],\n  ['isolamento','insulation','single_line_text_field'],\n  ['larghezza_tavola_skate','board_width','single_line_text_field'],\n  ['diametro_ruote','wheel_diameter','single_line_text_field'],\n  ['durezza_ruote','wheel_hardness','single_line_text_field'],\n  ['larghezza_truck','truck_width','single_line_text_field'],\n  ['wheelbase','truck_height','single_line_text_field'],\n  ['concave','concave','single_line_text_field'],\n  ['lunghezza_tavola','lunghezza_tavola','single_line_text_field'],\n  ['sistema_chiusura_scarponi','sistema_chiusura_scarponi','single_line_text_field'],\n  ['disk_compatibilita','disk_compatibilita','single_line_text_field'],\n  ['seo_title_original','seo_title_original','single_line_text_field'],\n  ['seo_body_original','seo_body_original','multi_line_text_field'],\n  ['short_description_en','short_description_en','multi_line_text_field'],\n  ['descrizione_breve_it','short_description_it','multi_line_text_field'],\n  ['descrizione_breve_fr','short_description_fr','multi_line_text_field'],\n  ['descrizione_breve_de','short_description_de','multi_line_text_field'],\n  ['descrizione_breve_es','short_description_es','multi_line_text_field'],\n  ['meta_title_it','meta_title_it','single_line_text_field'],\n  ['meta_title_en','meta_title_en','single_line_text_field'],\n  ['meta_title_fr','meta_title_fr','single_line_text_field'],\n  ['meta_title_de','meta_title_de','single_line_text_field'],\n  ['meta_title_es','meta_title_es','single_line_text_field'],\n  ['meta_description_it','meta_description_it','multi_line_text_field'],\n  ['meta_descrizione_en','meta_description_en','multi_line_text_field'],\n  ['meta_description_fr','meta_description_fr','multi_line_text_field'],\n  ['meta_description_de','meta_description_de','multi_line_text_field'],\n  ['meta_description_es','meta_description_es','multi_line_text_field']\n];\n\nvar out = [];\nfor (var i = 0; i < MAP.length; i++) {\n  var key = MAP[i][0], field = MAP[i][1], type = MAP[i][2];\n  var v = r[field];\n  v = (v == null) ? '' : String(v).trim();\n  if (v === '') continue;            // skip empties -> avoids \"Value can't be blank\"\n  out.push({ namespace: 'custom', key: key, value: v, type: type });\n}\n\n// gtin: only if present\nif (gtin !== '') {\n  out.push({ namespace: 'custom', key: 'gtin', value: gtin, type: 'single_line_text_field' });\n}\n\n// always flag enrichment done\nout.push({ namespace: 'custom', key: 'need_enrichment', value: 'false', type: 'boolean' });\n\nreturn { metafieldsJson: JSON.stringify(out), count: out.length };"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 3900,
+                                    "y": 300,
+                                    "name": "build metafields (skip empty)"
+                                }
+                            }
+                        },
+                        {
+                            "id": 19,
+                            "module": "shopify:makeAnApiCall",
+                            "version": 3,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12834461"
+                            },
+                            "mapper": {
+                                "query": "mutation productUpdate($product: ProductUpdateInput!) {\n  productUpdate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+                                "version": "2025-07",
+                                "variables": "{\n  \"product\": {\n    \"id\": \"{{16.id}}\",\n    \"metafields\": {{18.result.metafieldsJson}}\n  }\n}",
+                                "handleErrors": true,
+                                "flattenResponse": true,
+                                "variablesDataSource": "object"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 4200,
+                                    "y": 300,
+                                    "name": "metafields mutation"
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "shopify4"
+                                            },
+                                            "label": "My Shopify (Custom app) connection (pleasures-milano-official.myshopify.com)"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 20,
+                            "module": "shopify:makeAnApiCall",
+                            "version": 3,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12834461"
+                            },
+                            "mapper": {
+                                "query": "mutation productUpdate($input: ProductInput!) {\n  productUpdate(input: $input) {\n    product { id seo { title description } }\n    userErrors { field message }\n  }\n}",
+                                "version": "2025-07",
+                                "variables": "{\n  \"input\": {\n    \"id\": \"{{16.id}}\",\n    \"seo\": {\n      \"title\": \"{{6.result.meta_title_it}}\",\n      \"description\": \"{{6.result.seo_body_original}}\"\n    }\n  }\n}",
+                                "handleErrors": true,
+                                "flattenResponse": true,
+                                "variablesDataSource": "object"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 4500,
+                                    "y": 300
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "shopify4"
+                                            },
+                                            "label": "My Shopify (Custom app) connection (pleasures-milano-official.myshopify.com)"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 21,
+                            "module": "shopify:makeAnApiCall",
+                            "version": 3,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12834461"
+                            },
+                            "mapper": {
+                                "query": "query ProductTranslatableDigestsById($productId: ID!) {\n  translatableResourcesByIds(first: 1, resourceIds: [$productId]) {\n    edges {\n      node {\n        resourceId\n        translatableContent {\n          key\n          value\n          digest\n          locale\n        }\n      }\n    }\n  }\n}",
+                                "version": "2025-07",
+                                "variables": "{\n  \"productId\": \"{{16.id}}\"\n}",
+                                "handleErrors": true,
+                                "flattenResponse": true,
+                                "variablesDataSource": "object"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 4800,
+                                    "y": 300
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "shopify4"
+                                            },
+                                            "label": "My Shopify (Custom app) connection (pleasures-milano-official.myshopify.com)"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 22,
+                            "module": "code:ExecuteCode",
+                            "version": 1,
+                            "parameters": {},
+                            "mapper": {
+                                "input": [
+                                    {
+                                        "name": "translatableContent",
+                                        "value": "{{21.body.data.translatableResourcesByIds[].translatableContent}}"
+                                    }
+                                ],
+                                "language": "javascript",
+                                "inputFormat": "editor",
+                                "dependencies": [],
+                                "codeEditorJavascript": "var content = input.translatableContent || [];\n\nvar digestMap = {};\nfor (var i = 0; i < content.length; i++) {\n  if (content[i].key && content[i].digest) {\n    digestMap[content[i].key] = content[i].digest;\n  }\n}\n\nreturn {\n  title_digest:            digestMap['title']            || '',\n  body_html_digest:        digestMap['body_html']        || '',\n  meta_description_digest: digestMap['meta_description'] || '',\n  handle_digest:           digestMap['handle']           || '',\n  product_type_digest:     digestMap['product_type']     || '',\n  debug_keys:              Object.keys(digestMap).join(', '),\n  debug_count:             content.length\n};"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 5100,
+                                    "y": 300,
+                                    "name": "parse digests"
+                                }
+                            }
+                        },
+                        {
+                            "id": 25,
+                            "module": "code:ExecuteCode",
+                            "version": 1,
+                            "parameters": {},
+                            "mapper": {
+                                "input": [
+                                    {
+                                        "name": "result",
+                                        "value": "{{6.result}}"
+                                    },
+                                    {
+                                        "name": "digests",
+                                        "value": "{{22.result}}"
+                                    },
+                                    {
+                                        "name": "base_handle",
+                                        "value": "{{6.result.handle_en}}"
+                                    }
+                                ],
+                                "language": "javascript",
+                                "inputFormat": "editor",
+                                "dependencies": [],
+                                "codeEditorJavascript": "// build translations (skip handle clashes)\n// Place this Code (ExecuteCode) module immediately BEFORE module 23 (translationsRegister).\n//\n// Inputs to map:\n//   result      = {{6.result}}              (the AI output: handle_xx, meta_title_xx, html_body_xx, product_type)\n//   digests     = {{22.result}}             (title_digest, body_html_digest, handle_digest, product_type_digest)\n//   base_handle = {{6.result.handle_en}}    (the handle the product was CREATED with in module 16 = the default)\n//\n// Output: translationsJson  -> feed into module 23 variables.translations\n//\n// Why: Shopify rejects a localized handle that equals the product's default handle\n// (or another locale's handle) with \"<handle> is already taken as a handle for this\n// resource\". Snowboards make EN and DE handles identical, so DE collided. This also\n// drops any entry whose digest is empty (e.g. product_type when it isn't translatable).\n\nvar r = input.result || {};\nvar d = input.digests || {};\nvar base = (input.base_handle == null ? '' : String(input.base_handle)).trim().toLowerCase();\n\nvar used = {};\nif (base) used[base] = true;            // the default handle is already taken\n\nvar locales = ['en', 'fr', 'de', 'es'];\nvar out = [];\n\nfunction add(locale, key, value, digest) {\n  value = (value == null) ? '' : String(value);\n  if (value.trim() === '') return;                      // skip empty value\n  if (!digest || String(digest).trim() === '') return;  // skip missing digest\n  out.push({ locale: locale, key: key, value: value, translatableContentDigest: digest });\n}\n\nfor (var i = 0; i < locales.length; i++) {\n  var loc = locales[i];\n\n  add(loc, 'title',        r['meta_title_' + loc], d.title_digest);\n  add(loc, 'body_html',    r['html_body_'  + loc], d.body_html_digest);\n  add(loc, 'product_type', r.product_type,         d.product_type_digest); // skipped if no digest\n\n  // handle: skip if empty, no digest, equals the default, or already used by another locale\n  var h = r['handle_' + loc];\n  h = (h == null) ? '' : String(h).trim();\n  var hk = h.toLowerCase();\n  if (h !== '' && d.handle_digest && !used[hk]) {\n    out.push({ locale: loc, key: 'handle', value: h, translatableContentDigest: d.handle_digest });\n    used[hk] = true;\n  }\n}\n\nreturn { translationsJson: JSON.stringify(out), count: out.length };\n"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 5300,
+                                    "y": 450,
+                                    "name": "build translations (skip handle clashes)"
+                                }
+                            }
+                        },
+                        {
+                            "id": 23,
+                            "module": "shopify:makeAnApiCall",
+                            "version": 3,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12834461"
+                            },
+                            "mapper": {
+                                "query": "mutation translationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {\n  translationsRegister(resourceId: $resourceId, translations: $translations) {\n    translations {\n      locale\n      key\n      value\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+                                "version": "2025-07",
+                                "variables": "{\n  \"resourceId\": \"{{16.id}}\",\n  \"translations\": {{25.result.translationsJson}}\n}",
+                                "handleErrors": true,
+                                "flattenResponse": true,
+                                "variablesDataSource": "object"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 5500,
+                                    "y": 300
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "shopify4"
+                                            },
+                                            "label": "My Shopify (Custom app) connection (pleasures-milano-official.myshopify.com)"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 24,
+                            "module": "google-sheets:updateRow",
+                            "version": 2,
+                            "parameters": {
+                                "__IMTCONN__": "TAC_12827547"
+                            },
+                            "mapper": {
+                                "from": "drive",
+                                "mode": "select",
+                                "values": {
+                                    "0": "{{4.`0`}}",
+                                    "1": "{{16.id}}",
+                                    "2": "{{6.result.handle_it}}",
+                                    "3": "{{6.result.handle_en}}",
+                                    "4": "{{6.result.handle_de}}",
+                                    "5": "{{6.result.handle_fr}}",
+                                    "6": "{{6.result.handle_es}}",
+                                    "7": "{{15.result.selected_name}}",
+                                    "10": "draft",
+                                    "16": "{{6.result.gender}}",
+                                    "17": "{{7.result.image_1}}\n{{7.result.image_2}}\n{{7.result.image_3}}\n{{7.result.image_4}}\n{{7.result.image_5}}\n{{7.result.image_6}}\n{{7.result.image_7}}\n{{7.result.image_8}}\n{{7.result.image_9}}\n{{7.result.image_10}}",
+                                    "18": "{{13.alt_texts_array[1]}}",
+                                    "19": "{{13.alt_texts_array[3]}}",
+                                    "20": "{{13.alt_texts_array[7]}}",
+                                    "21": "{{13.alt_texts_array[5]}}",
+                                    "22": "{{13.alt_texts_array[9]}}",
+                                    "23": "{{6.result.gender}}",
+                                    "24": "{{6.result.availability}}",
+                                    "25": "{{4.`25`}}",
+                                    "26": "{{6.result.size}}",
+                                    "27": "{{6.result.length}}",
+                                    "28": "{{6.result.inseam}}",
+                                    "29": "{{6.result.waist}}",
+                                    "30": "{{6.result.shoe_size_eu}}",
+                                    "31": "{{6.result.snowboard_width}}",
+                                    "32": "{{6.result.snowboard_profile}}",
+                                    "33": "{{6.result.shape}}",
+                                    "34": "{{6.result.riding_style}}",
+                                    "35": "{{6.result.riding_level}}",
+                                    "36": "{{6.result.flex}}",
+                                    "37": "{{6.result.fit}}\"",
+                                    "38": "{{6.result.waterproofing}}",
+                                    "39": "{{6.result.breathability}}",
+                                    "40": "{{6.result.insulation}}",
+                                    "41": "{{6.result.board_width}}",
+                                    "42": "{{6.result.wheel_diameter}}",
+                                    "43": "{{6.result.wheel_hardness}}",
+                                    "44": "{{6.result.truck_width}}",
+                                    "45": "{{6.result.truck_height}}",
+                                    "46": "{{6.result.concave}}",
+                                    "47": "{{6.result.meta_title_it}}",
+                                    "48": "{{6.result.meta_title_en}}",
+                                    "49": "{{6.result.meta_title_fr}}",
+                                    "50": "{{6.result.meta_title_de}}",
+                                    "51": "{{6.result.meta_title_es}}",
+                                    "52": "{{6.result.meta_description_it}}",
+                                    "53": "{{6.result.meta_description_en}}",
+                                    "54": "{{6.result.meta_description_fr}}",
+                                    "55": "{{6.result.short_description_de}}",
+                                    "56": "{{6.result.meta_description_es}}",
+                                    "57": "{{6.result.short_description_it}}",
+                                    "58": "{{6.result.short_description_en}}",
+                                    "59": "{{6.result.short_description_fr}}",
+                                    "60": "{{6.result.short_description_de}}",
+                                    "61": "{{6.result.short_description_es}}"
+                                },
+                                "sheetId": "Master feed product",
+                                "rowNumber": "{{3.`__ROW_NUMBER__`}}",
+                                "spreadsheetId": "/18B-IpSZASqo3chidlm_JIbwGA0xy0pNIgbRmZC0K-uA",
+                                "includesHeaders": true,
+                                "useColumnHeaders": false,
+                                "valueInputOption": "USER_ENTERED"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 5700,
+                                    "y": 300
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "google"
+                                            },
+                                            "label": "My Google connection (pleasuresmilano.com@gmail.com)"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "metadata": {
+        "instant": false,
+        "version": 1,
+        "scenario": {
+            "roundtrips": 1,
+            "maxErrors": 3,
+            "autoCommit": true,
+            "autoCommitTriggerLast": true,
+            "sequential": false,
+            "slots": null,
+            "confidential": false,
+            "dataloss": false,
+            "dlq": false,
+            "freshVariables": false
+        },
+        "designer": {
+            "orphans": []
+        },
+        "zone": "eu2.make.com"
+    }
+}
