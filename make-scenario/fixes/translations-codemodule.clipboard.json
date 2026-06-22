@@ -1,0 +1,135 @@
+{
+  "subflows": [
+    {
+      "flow": [
+        {
+          "id": 25,
+          "module": "code:ExecuteCode",
+          "version": 1,
+          "parameters": {},
+          "mapper": {
+            "input": [
+              {
+                "name": "result",
+                "value": "{{6.result}}"
+              },
+              {
+                "name": "digests",
+                "value": "{{22.result}}"
+              },
+              {
+                "name": "base_handle",
+                "value": "{{6.result.handle_en}}"
+              }
+            ],
+            "language": "javascript",
+            "inputFormat": "editor",
+            "dependencies": [],
+            "codeEditorJavascript": "// build translations (skip handle clashes)\n// Place this Code (ExecuteCode) module immediately BEFORE module 23 (translationsRegister).\n//\n// Inputs to map:\n//   result      = {{6.result}}              (the AI output: handle_xx, meta_title_xx, html_body_xx, product_type)\n//   digests     = {{22.result}}             (title_digest, body_html_digest, handle_digest, product_type_digest)\n//   base_handle = {{6.result.handle_en}}    (the handle the product was CREATED with in module 16 = the default)\n//\n// Output: translationsJson  -> feed into module 23 variables.translations\n//\n// Why: Shopify rejects a localized handle that equals the product's default handle\n// (or another locale's handle) with \"<handle> is already taken as a handle for this\n// resource\". Snowboards make EN and DE handles identical, so DE collided. This also\n// drops any entry whose digest is empty (e.g. product_type when it isn't translatable).\n\nvar r = input.result || {};\nvar d = input.digests || {};\nvar base = (input.base_handle == null ? '' : String(input.base_handle)).trim().toLowerCase();\n\nvar used = {};\nif (base) used[base] = true;            // the default handle is already taken\n\nvar locales = ['en', 'fr', 'de', 'es'];\nvar out = [];\n\nfunction add(locale, key, value, digest) {\n  value = (value == null) ? '' : String(value);\n  if (value.trim() === '') return;                      // skip empty value\n  if (!digest || String(digest).trim() === '') return;  // skip missing digest\n  out.push({ locale: locale, key: key, value: value, translatableContentDigest: digest });\n}\n\nfor (var i = 0; i < locales.length; i++) {\n  var loc = locales[i];\n\n  add(loc, 'title',        r['meta_title_' + loc], d.title_digest);\n  add(loc, 'body_html',    r['html_body_'  + loc], d.body_html_digest);\n  add(loc, 'product_type', r.product_type,         d.product_type_digest); // skipped if no digest\n\n  // handle: skip if empty, no digest, equals the default, or already used by another locale\n  var h = r['handle_' + loc];\n  h = (h == null) ? '' : String(h).trim();\n  var hk = h.toLowerCase();\n  if (h !== '' && d.handle_digest && !used[hk]) {\n    out.push({ locale: loc, key: 'handle', value: h, translatableContentDigest: d.handle_digest });\n    used[hk] = true;\n  }\n}\n\nreturn { translationsJson: JSON.stringify(out), count: out.length };\n"
+          },
+          "metadata": {
+            "designer": {
+              "x": 5400,
+              "y": 600,
+              "name": "build translations (skip handle clashes)"
+            },
+            "restore": {
+              "expect": {
+                "input": {
+                  "items": [
+                    null,
+                    null,
+                    null
+                  ]
+                },
+                "language": {
+                  "mode": "chose",
+                  "label": "JavaScript"
+                },
+                "inputFormat": {
+                  "label": "Code editor"
+                }
+              }
+            },
+            "expect": [
+              {
+                "name": "language",
+                "type": "select",
+                "label": "Language",
+                "required": true,
+                "validate": {
+                  "enum": [
+                    "javascript",
+                    "python"
+                  ]
+                }
+              },
+              {
+                "name": "input",
+                "spec": {
+                  "name": "value",
+                  "spec": [
+                    {
+                      "name": "name",
+                      "type": "text",
+                      "label": "Name",
+                      "required": true,
+                      "validate": {
+                        "max": 32,
+                        "min": 1,
+                        "pattern": "^[a-zA-Z0-9_]{1,32}$"
+                      }
+                    },
+                    {
+                      "name": "value",
+                      "type": "any",
+                      "label": "Value"
+                    }
+                  ],
+                  "type": "collection",
+                  "label": "Variable"
+                },
+                "type": "array",
+                "label": "Input"
+              },
+              {
+                "name": "dependencies",
+                "spec": {
+                  "name": "value",
+                  "type": "text",
+                  "label": "Dependency",
+                  "required": true,
+                  "validate": {
+                    "max": 214,
+                    "min": 1,
+                    "pattern": "^[A-Za-z0-9_@\\./<>=!~\\^+-]{1,214}$"
+                  }
+                },
+                "type": "array",
+                "label": "Additional dependencies (Enterprise plans only)"
+              },
+              {
+                "name": "inputFormat",
+                "type": "select",
+                "label": "Input format",
+                "required": true,
+                "validate": {
+                  "enum": [
+                    "editor",
+                    "string"
+                  ]
+                }
+              },
+              {
+                "name": "codeEditorJavascript",
+                "type": "editor",
+                "label": "Code",
+                "required": true
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
